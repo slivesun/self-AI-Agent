@@ -4,6 +4,9 @@ import ReactMarkdown from 'react-markdown';
 import { api, streamRun } from '../api';
 import BrandMark from '../components/BrandMark';
 import { MenuIcon, MoonIcon, SunIcon } from '../components/HeaderIcons';
+import ProEntryButton from '../components/ProEntryButton';
+import { isDesktop, openProWindow } from '../bridge';
+import { useTheme } from '../theme';
 
 type Message = {
   id: number;
@@ -61,12 +64,15 @@ export default function VisitorChatPage() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   const [sidebarWidth, setSidebarWidth] = useState(22); // 百分比
-  const [dark, setDark] = useState(localStorage.getItem('ra_dark') === '1');
+  // 主题统一由 useTheme 管理：与专业版窗口共享 localStorage 并跨窗口同步
+  const { dark, toggle: toggleTheme, mode: themeMode } = useTheme();
   const [visitorToken, setVisitorToken] = useState(localStorage.getItem(TOKEN_KEY) || '');
   const [visitorUser, setVisitorUser] = useState<any>(null);
   const [identityMode, setIdentityMode] = useState<'guest' | 'user'>('guest');
   const [limits, setLimits] = useState(DEFAULT_LIMITS);
-  const [loginPrompt, setLoginPrompt] = useState<null | 'question' | 'session'>(null);
+  const [loginPrompt, setLoginPrompt] = useState<null | 'question' | 'session' | 'pro'>(null);
+  const [toast, setToast] = useState('');
+  const toastTimerRef = useRef<any>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   // 账号/密码用非受控输入 + ref 读取，避免浏览器自动填充与 React 受控值互相覆盖导致输入框“点不进去/输入被清空”
   const rememberedUser = rememberFlag ? localStorage.getItem('ra_visitor_remember_user') || '' : '';
@@ -224,11 +230,33 @@ export default function VisitorChatPage() {
     };
   }, [userPanelOpen]);
 
-  // 深色模式
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('ra_dark', dark ? '1' : '0');
-  }, [dark]);
+  // 深色模式由 useTheme 统一处理（应用 class + 写 localStorage + 跨窗口同步），此处不再重复
+
+  // 轻提示：专业版窗口打开失败等端侧异常
+  const showToast = (message: string) => {
+    setToast(message);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(''), 2600);
+  };
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
+
+  // 打开专业版窗口：仅桌面端；访客先登录
+  const handleOpenPro = async () => {
+    if (!visitorUser || identityMode !== 'user') {
+      setLoginPrompt('pro');
+      return;
+    }
+    const res = await openProWindow(themeMode);
+    if (!res.ok) showToast(res.error || '专业版窗口打开失败');
+  };
+
+  // 登录引导弹窗文案：三种触发来源共用同一套弹窗
+  const loginPromptCopy =
+    loginPrompt === 'pro'
+      ? { title: '专业版需要登录后使用', body: '专业版是独立的桌面工作台。登录账号后即可打开，当前为访客模式。' }
+      : loginPrompt === 'session'
+        ? { title: '访客会话已达上限', body: `访客最多创建 ${limits.maxSessions} 个会话，登录后不限会话数量。` }
+        : { title: '该会话的提问次数已用完', body: `访客每个会话只能提问 ${limits.maxQuestionsPerSession} 次，登录后可继续对话。` };
 
   // 侧边栏拖拽
   const onDragStart = (e: React.MouseEvent) => { e.preventDefault(); draggingRef.current = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; };
@@ -669,7 +697,9 @@ export default function VisitorChatPage() {
           </div>
 
           <div className="header-actions">
-            <button className="header-icon-btn" onClick={() => setDark(!dark)} title={dark ? '切换到浅色' : '切换到深色'}>
+            {/* 专业版入口：仅桌面端渲染，位于主题切换左侧 */}
+            {isDesktop && <ProEntryButton onClick={handleOpenPro} />}
+            <button className="header-icon-btn" onClick={toggleTheme} title={dark ? '切换到浅色' : '切换到深色'}>
               {dark ? <SunIcon /> : <MoonIcon />}
             </button>
             {/* 用户头像 */}
@@ -783,16 +813,12 @@ export default function VisitorChatPage() {
         </div>
       </div>
 
-      {/* 访客额度用尽提示 */}
+      {/* 登录引导：访客额度用尽 / 专业版入口 */}
       {loginPrompt && (
         <div className="limit-modal-mask" onClick={() => setLoginPrompt(null)}>
           <div className="limit-modal" onClick={e => e.stopPropagation()}>
-            <h3>{loginPrompt === 'session' ? '访客会话已达上限' : '该会话的提问次数已用完'}</h3>
-            <p>
-              {loginPrompt === 'session'
-                ? `访客最多创建 ${limits.maxSessions} 个会话，登录后不限会话数量。`
-                : `访客每个会话只能提问 ${limits.maxQuestionsPerSession} 次，登录后可继续对话。`}
-            </p>
+            <h3>{loginPromptCopy.title}</h3>
+            <p>{loginPromptCopy.body}</p>
             <div className="limit-modal-actions">
               <button className="ghost" onClick={() => setLoginPrompt(null)}>稍后再说</button>
               <button className="primary" onClick={openAuthPage}>登录 / 注册</button>
@@ -800,6 +826,8 @@ export default function VisitorChatPage() {
           </div>
         </div>
       )}
+
+      {toast && <div className="app-toast">{toast}</div>}
     </div>
   );
 }

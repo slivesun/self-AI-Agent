@@ -20,7 +20,10 @@
       "main.cjs",
       "preload.cjs",
       "package.json",
-      "assets/**/*"
+      "assets/**/*",
+      "bridge/**/*",
+      "ipc/**/*",
+      "windows/**/*"
     ],
     "win": {
       "target": "nsis",

@@ -1,14 +1,20 @@
-const { contextBridge, ipcRenderer } = require('electron');
+/**
+ * preload：把公共 JS Bridge 挂到 window.desktopBridge，供 React 页面调用。
+ *
+ * - 同一份 preload 同时服务主窗口和专业版窗口，窗口身份由 main 进程通过
+ *   additionalArguments（--app-window=main|pro）传入，React 侧用
+ *   window.desktopBridge.runtime.windowKind 区分。
+ * - 渲染进程仍然拿不到 Node / ipcRenderer 原始对象（contextIsolation: true）。
+ */
 
-// 只暴露窗口控制相关的最小能力，渲染进程不接触 Node / ipcRenderer 原始对象
-contextBridge.exposeInMainWorld('desktop', {
-  minimize: () => ipcRenderer.send('window:minimize'),
-  toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
-  close: () => ipcRenderer.send('window:close'),
-  isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
-  onMaximizeChange: (cb) => {
-    const handler = (_event, value) => cb(!!value);
-    ipcRenderer.on('window:maximized', handler);
-    return () => ipcRenderer.removeListener('window:maximized', handler);
-  },
+const { contextBridge, ipcRenderer } = require('electron');
+const { createBridge } = require('./bridge/preload-api.cjs');
+
+const bridge = createBridge({
+  ipcRenderer,
+  argv: process.argv,
+  platform: process.platform,
+  appVersion: process.env.APP_VERSION || '',
 });
+
+contextBridge.exposeInMainWorld('desktopBridge', bridge);
