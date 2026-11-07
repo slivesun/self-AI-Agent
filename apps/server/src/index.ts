@@ -9,6 +9,7 @@ import adminRoutes from './routes/admin.js';
 import knowledgeRoutes from './routes/knowledge.js';
 import linksRoutes from './routes/links.js';
 import visitorRoutes from './routes/visitor.js';
+import visitorAuthRoutes from './routes/visitorAuth.js';
 
 initDb();
 
@@ -23,6 +24,7 @@ app.use(express.json({ limit: '5mb' }));
 
 // 路由挂载
 app.use('/api/auth', authRoutes);
+app.use('/api/auth/visitor', visitorAuthRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/knowledge', knowledgeRoutes);
 app.use('/api/admin/links', linksRoutes);

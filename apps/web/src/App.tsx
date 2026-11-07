@@ -8,6 +8,7 @@ import LinksPage from './pages/admin/LinksPage';
 import AnalyticsPage from './pages/admin/AnalyticsPage';
 import KnowledgePage from './pages/admin/KnowledgePage';
 import VisitorChatPage from './pages/VisitorChatPage';
+import DesktopTitleBar from './components/DesktopTitleBar';
 import { getToken } from './api';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
@@ -17,19 +18,24 @@ function ProtectedRoute({ children }: { children: JSX.Element }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/c/:slug" element={<VisitorChatPage />} />
-      <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
-        <Route index element={<Navigate to="/admin/profile" replace />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="qa" element={<QAPage />} />
-        <Route path="persona" element={<PersonaPage />} />
-        <Route path="links" element={<LinksPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
-        <Route path="knowledge" element={<KnowledgePage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/c/:slug" replace />} />
-    </Routes>
+    <div className="app-shell">
+      <DesktopTitleBar />
+      <div className="app-content">
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/c/:slug" element={<VisitorChatPage />} />
+          <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+            <Route index element={<Navigate to="/admin/profile" replace />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="qa" element={<QAPage />} />
+            <Route path="persona" element={<PersonaPage />} />
+            <Route path="links" element={<LinksPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="knowledge" element={<KnowledgePage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/c/:slug" replace />} />
+        </Routes>
+      </div>
+    </div>
   );
 }

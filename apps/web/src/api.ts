@@ -6,11 +6,20 @@ export function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
 async function request<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as any) };
-  const token = getToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  // 访客路由用访客 token，管理路由用管理员 token
+  const isVisitor = path.startsWith('/api/c/') || path.startsWith('/api/auth/visitor');
+  const token = isVisitor
+    ? (localStorage.getItem('ra_visitor_token') || '')
+    : getToken();
+  if (token && token !== 'anonymous') headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(path, { ...options, headers });
   const json = await res.json();
-  if (!json.ok) throw new Error(json.error || '请求失败');
+  if (!json.ok) {
+    const err: any = new Error(json.error || '请求失败');
+    if (json.code) err.code = json.code;
+    err.status = res.status;
+    throw err;
+  }
   return json.data;
 }
 
@@ -44,14 +53,15 @@ export const api = {
   getAnalytics: () => request('/api/admin/analytics/summary'),
   getSessionMessages: (sessionId: string) => request(`/api/admin/sessions/${sessionId}/messages`),
 
+  visitorMe: () => request('/api/auth/visitor/me'),
   visitorInit: (slug: string, data: { visitorId?: string; code?: string }) =>
     request(`/api/c/${slug}/session`, { method: 'POST', body: JSON.stringify(data) }),
-  visitorSend: (slug: string, data: { sessionId: string; content: string; model?: string }) =>
+  visitorSend: (slug: string, data: { sessionId: string; visitorId?: string; content: string; model?: string }) =>
     request(`/api/c/${slug}/messages`, { method: 'POST', body: JSON.stringify(data) }),
   visitorSessions: (slug: string, visitorId: string) =>
-    request(`/api/c/${slug}/sessions?visitorId=${visitorId}`),
-  visitorSessionMessages: (slug: string, sessionId: string) =>
-    request(`/api/c/${slug}/sessions/${sessionId}/messages`),
+    request(`/api/c/${slug}/sessions?visitorId=${encodeURIComponent(visitorId)}`),
+  visitorSessionMessages: (slug: string, sessionId: string, visitorId?: string) =>
+    request(`/api/c/${slug}/sessions/${sessionId}/messages${visitorId ? `?visitorId=${encodeURIComponent(visitorId)}` : ''}`),
   visitorNewSession: (slug: string, visitorId: string) =>
     request(`/api/c/${slug}/session`, { method: 'POST', body: JSON.stringify({ visitorId, newSession: true }) }),
   visitorDeleteSession: (slug: string, sessionId: string) =>

@@ -22,7 +22,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f0f2f5' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: '#f0f2f5' }}>
       <Card title="简历 Agent 后台登录" style={{ width: 360 }}>
         <Form onFinish={onFinish} layout="vertical">
           <Form.Item name="username" label="用户名" rules={[{ required: true }]}>

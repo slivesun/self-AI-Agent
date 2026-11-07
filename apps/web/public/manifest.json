@@ -1,12 +1,12 @@
 {
-  "name": "AI 简历助手",
-  "short_name": "简历助手",
-  "description": "张华的 AI 简历对话助手",
+  "name": "个人AI助手",
+  "short_name": "个人AI助手",
+  "description": "个人AI助手 · 简历对话与知识问答",
   "start_url": "/c/yw2h7ngjq6",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
-  "theme_color": "#1890ff",
+  "theme_color": "#5A72FF",
   "icons": [
     {
       "src": "/icon-192.png",

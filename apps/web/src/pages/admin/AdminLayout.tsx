@@ -39,7 +39,7 @@ export default function AdminLayout() {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100%' }}>
       <Sider theme="dark" width={200}>
         <div style={{ height: 32, margin: 16, color: '#fff', fontSize: 16, fontWeight: 600 }}>
           简历 Agent 后台

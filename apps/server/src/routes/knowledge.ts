@@ -54,6 +54,13 @@ router.put('/:id/tags', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+router.put('/:id/rename', requireAuth, (req, res) => {
+  const { filename } = req.body;
+  if (!filename || !filename.trim()) return res.json({ ok: false, error: '文件名不能为空' });
+  db.prepare('UPDATE knowledge_docs SET filename = ? WHERE id = ?').run(filename.trim(), req.params.id);
+  res.json({ ok: true });
+});
+
 router.delete('/:id', requireAuth, (req, res) => {
   db.prepare('DELETE FROM knowledge_docs WHERE id = ?').run(req.params.id);
   res.json({ ok: true });

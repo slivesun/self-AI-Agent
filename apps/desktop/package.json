@@ -7,7 +7,7 @@
     "build": "electron-builder"
   },
   "devDependencies": {
-    "electron": "^32.0.0",
+    "electron": "^45.2.3",
     "electron-builder": "^25.0.0"
   },
   "build": {
@@ -18,10 +18,18 @@
     },
     "files": [
       "main.cjs",
-      "package.json"
+      "preload.cjs",
+      "package.json",
+      "assets/**/*"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico"
     }
   }
 }

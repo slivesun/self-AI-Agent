@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Table, Button, Modal, Tag, message, Space, Popconfirm, Input } from 'antd';
-import { UploadOutlined, EyeOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { UploadOutlined, EyeOutlined, DeleteOutlined, EditOutlined, FormOutlined } from '@ant-design/icons';
 import { api, getToken } from '../../api';
 
 export default function KnowledgePage() {
@@ -15,6 +15,9 @@ export default function KnowledgePage() {
   const [editDoc, setEditDoc] = useState<any>(null);
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editNewTag, setEditNewTag] = useState('');
+  const [renameDoc, setRenameDoc] = useState<any>(null);
+  const [renameName, setRenameName] = useState('');
+  const [renameExt, setRenameExt] = useState('');
 
   const load = async () => {
     const res: any = await api.getKnowledge();
@@ -86,9 +89,10 @@ export default function KnowledgePage() {
     { title: '大小', dataIndex: 'size', key: 'size', width: 100, render: (s: number) => s > 1000 ? `${(s/1000).toFixed(1)}KB` : `${s}B` },
     { title: '标签', dataIndex: 'tags', key: 'tags', render: (tags: string[]) => (tags || []).map((t: string) => <Tag key={t} color="blue">{t}</Tag>) },
     { title: '上传时间', dataIndex: 'createdAt', key: 'createdAt', width: 160 },
-    { title: '操作', key: 'actions', width: 200, render: (_: any, r: any) => (
+    { title: '操作', key: 'actions', width: 260, render: (_: any, r: any) => (
       <Space>
         <Button size="small" icon={<EyeOutlined />} onClick={() => onPreview(r.id)}>预览</Button>
+        <Button size="small" icon={<FormOutlined />} onClick={() => { setRenameDoc(r); const dot = r.filename.lastIndexOf('.'); setRenameName(dot > 0 ? r.filename.slice(0, dot) : r.filename); setRenameExt(dot > 0 ? r.filename.slice(dot) : ''); }}>重命名</Button>
         <Button size="small" icon={<EditOutlined />} onClick={() => { setEditDoc(r); setEditTags(r.tags || []); setEditNewTag(''); }}>编辑标签</Button>
         <Popconfirm title="确定删除此文件？" onConfirm={() => onDelete(r.id)} okText="删除" cancelText="取消">
           <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
@@ -202,6 +206,33 @@ export default function KnowledgePage() {
             已选：{editTags.map(t => <Tag key={t} color="blue" closable onClose={() => setEditTags(editTags.filter(v => v !== t))}>{t}</Tag>)}
           </div>
         )}
+      </Modal>
+
+      {/* 重命名弹框 */}
+      <Modal
+        title="重命名文档"
+        open={!!renameDoc}
+        onOk={async () => {
+          if (!renameName.trim()) return;
+          await fetch(`/api/admin/knowledge/${renameDoc.id}/rename`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+            body: JSON.stringify({ filename: renameName.trim() + renameExt }),
+          });
+          message.success('已重命名');
+          setRenameDoc(null);
+          load();
+        }}
+        onCancel={() => setRenameDoc(null)}
+        okText="保存"
+      >
+        <Input
+          value={renameName}
+          onChange={(e) => setRenameName(e.target.value)}
+          placeholder="输入新文件名"
+          maxLength={100}
+          suffix={<span style={{ color: '#999' }}>{renameExt}</span>}
+        />
       </Modal>
 
       {/* 预览弹框 */}

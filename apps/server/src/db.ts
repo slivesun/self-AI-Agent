@@ -137,6 +137,20 @@ export function initDb() {
     db.prepare('INSERT INTO personas (id, data) VALUES (1, ?)').run(defaultPersona);
   }
 
+  // 访客用户表（注册登录）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS visitor_users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      nickname TEXT NOT NULL,
+      avatar TEXT DEFAULT '0',
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  // 旧表加 avatar 列
+  try { db.exec(`ALTER TABLE visitor_users ADD COLUMN avatar TEXT DEFAULT '0'`); } catch {}
+
   // Seed default share link
   const link = db.prepare('SELECT id FROM share_links LIMIT 1').get() as { id: string } | undefined;
   if (!link) {
