@@ -24,37 +24,41 @@ export default function AnalyticsPage() {
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
       <Row gutter={16}>
-        <Col span={6}><Card><Statistic title="今日访客" value={data.todayVisitors} /></Card></Col>
-        <Col span={6}><Card><Statistic title="今日消息" value={data.todayMessages} /></Card></Col>
-        <Col span={6}><Card><Statistic title="总会话数" value={data.totalSessions} /></Card></Col>
-        <Col span={6}><Card><Statistic title="未命中问题" value={data.unanswered.length} /></Card></Col>
+        <Col span={6}><Card size="small"><Statistic title="今日访客" value={data.todayVisitors} /></Card></Col>
+        <Col span={6}><Card size="small"><Statistic title="今日消息" value={data.todayMessages} /></Card></Col>
+        <Col span={6}><Card size="small"><Statistic title="总会话数" value={data.totalSessions} /></Card></Col>
+        <Col span={6}><Card size="small"><Statistic title="未命中问题" value={data.unanswered.length} /></Card></Col>
       </Row>
 
       <Row gutter={16}>
         <Col span={12}>
           <Card title="未命中问题（面试官问了但你没答上来的）" size="small">
-            <List
-              dataSource={data.unanswered}
-              renderItem={(item: any) => (
-                <List.Item>
-                  <List.Item.Meta
-                    title={item.question}
-                    description={`出现 ${item.hitCount} 次 · 最近 ${item.lastSeen}`}
-                  />
-                </List.Item>
-              )}
-              locale={{ emptyText: '暂无未命中问题，继续保持！' }}
-            />
+            <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+              <List
+                dataSource={data.unanswered}
+                renderItem={(item: any) => (
+                  <List.Item>
+                    <List.Item.Meta
+                      title={item.question}
+                      description={`出现 ${item.hitCount} 次 · 最近 ${item.lastSeen}`}
+                    />
+                  </List.Item>
+                )}
+                locale={{ emptyText: '暂无未命中问题，继续保持！' }}
+              />
+            </div>
           </Card>
         </Col>
         <Col span={12}>
           <Card title="最近访客会话" size="small">
-            <Table dataSource={data.recentSessions} rowKey="id" size="small" pagination={false}
-              onRow={(r) => ({ onClick: () => openSession(r.id), style: { cursor: 'pointer' } })}>
-              <Table.Column title="来源" dataIndex="shareLabel" render={(v) => v || <Tag>直接访问</Tag>} />
-              <Table.Column title="消息数" dataIndex="messageCount" />
-              <Table.Column title="时间" dataIndex="createdAt" />
-            </Table>
+            <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+              <Table dataSource={data.recentSessions} rowKey="id" size="small" pagination={false}
+                onRow={(r) => ({ onClick: () => openSession(r.id), style: { cursor: 'pointer' } })}>
+                <Table.Column title="访客问的第一个问题" dataIndex="firstQuestion" ellipsis render={(v) => v || '—'} />
+                <Table.Column title="消息数" dataIndex="messageCount" width={70} />
+                <Table.Column title="时间" dataIndex="createdAt" width={150} />
+              </Table>
+            </div>
           </Card>
         </Col>
       </Row>
