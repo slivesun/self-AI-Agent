@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Menu, Tray, nativeImage, screen, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 
 const { registerIpcHandlers } = require('./ipc/index.cjs');
@@ -14,12 +15,18 @@ let tray = null;
 
 const isDev = !app.isPackaged;
 const BACKEND_PORT = 3001;
+// 仅在拿不到后端默认链接时兜底使用（正常情况由 /api/default-link 决定）
 const CHAT_SLUG = 'yw2h7ngjq6';
 const CHAT_PATH = `/c/${CHAT_SLUG}`;
 const PRO_PATH = '/pro';
 const BASE_URL = `http://localhost:${BACKEND_PORT}`;
-const MAIN_URL = `${BASE_URL}${CHAT_PATH}`;
+let chatUrl = `${BASE_URL}${CHAT_PATH}`;
 const PRO_URL = `${BASE_URL}${PRO_PATH}`;
+
+// 打包后后端会作为独立目录放进 resources/backend（见 apps/desktop/scripts/package.mjs）
+const BACKEND_DIR = isDev
+  ? path.join(__dirname, '..', 'server')
+  : path.join(process.resourcesPath, 'backend');
 
 // 与 electron-builder 的 appId 保持一致，Windows 任务栏按此归组并使用窗口图标
 const APP_ID = 'com.resume.agent';
@@ -39,7 +46,7 @@ function mainWindowDeps(extra) {
     Menu,
     icon: ICON_ICO,
     userDataDir,
-    url: MAIN_URL,
+    url: chatUrl,
     ...extra,
   };
 }
@@ -56,6 +63,29 @@ function proWindowDeps(extra) {
   };
 }
 
+/** 读取后端目录下的 .env（安装包里没有 node 的 --env-file，这里手动注入环境变量） */
+function readEnvFile(file) {
+  try {
+    const text = fs.readFileSync(file, 'utf8');
+    const env = {};
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq === -1) continue;
+      const key = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (key) env[key] = value;
+    }
+    return env;
+  } catch {
+    return {};
+  }
+}
+
 function startBackend() {
   if (isDev) {
     // 开发模式：用 tsx 启动后端
@@ -65,9 +95,35 @@ function startBackend() {
       stdio: 'pipe',
     });
   } else {
-    // 生产模式：启动打包后的后端
-    backendProcess = spawn(process.execPath, [path.join(process.resourcesPath, 'server.cjs')], {
+    // 生产模式：用 Electron 自带的 Node（ELECTRON_RUN_AS_NODE）跑后端 JS，
+    // 用户机器上不需要另外装 Node。数据库落用户目录，前端产物指向包内 web 目录。
+    const entry = path.join(BACKEND_DIR, 'dist', 'index.js');
+    // 环境变量来源：用户数据目录的 config/.env（用户自己填）优先，其次包内 .env（若存在）
+    const userEnv = readEnvFile(path.join(app.getPath('userData'), 'config', '.env'));
+    const bundledEnv = readEnvFile(path.join(BACKEND_DIR, '.env'));
+    const dotenv = { ...bundledEnv, ...userEnv };
+
+    backendProcess = spawn(process.execPath, [entry], {
+      cwd: BACKEND_DIR,
+      windowsHide: true,
       stdio: 'pipe',
+      env: {
+        ...process.env,
+        ...dotenv,
+        ELECTRON_RUN_AS_NODE: '1',
+        PORT: String(BACKEND_PORT),
+        RESUME_DATA_DIR: path.join(app.getPath('userData'), 'data'),
+        WEB_DIST_DIR: path.join(BACKEND_DIR, 'web'),
+        NODE_OPTIONS: '',
+      },
+    });
+
+    backendProcess.on('error', (err) => {
+      console.error('[backend] 启动失败:', err && err.message ? err.message : err);
+    });
+    backendProcess.on('exit', (code) => {
+      console.error(`[backend] 进程退出，code=${code}`);
+      backendProcess = null;
     });
   }
 
@@ -79,10 +135,10 @@ function startBackend() {
   });
 }
 
-function waitForBackend(retries = 30) {
+function waitForBackend(retries = 60) {
   return new Promise((resolve, reject) => {
     const check = (n) => {
-      fetch(MAIN_URL)
+      fetch(`${BASE_URL}/api/default-link`)
         .then(() => resolve())
         .catch(() => {
           if (n <= 0) return reject(new Error('Backend failed to start'));
@@ -91,6 +147,19 @@ function waitForBackend(retries = 30) {
     };
     check(retries);
   });
+}
+
+/** 后端就绪后向它要默认对话链接的 slug，避免客户端写死（换库/首次启动 slug 会变） */
+async function resolveChatUrl() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/default-link`);
+    const json = await res.json();
+    const slug = json && json.ok && json.data && json.data.slug;
+    if (slug) return `${BASE_URL}/c/${slug}`;
+  } catch {
+    // 忽略：回退到内置 slug
+  }
+  return `${BASE_URL}${CHAT_PATH}`;
 }
 
 /**
@@ -137,33 +206,47 @@ async function bootstrap() {
 
   try {
     await waitForBackend();
+    chatUrl = await resolveChatUrl();
   } catch (err) {
     console.log('backend wait timeout', err && err.message);
   }
 
   try {
-    await mainWindow.loadURL(MAIN_URL);
+    await mainWindow.loadURL(chatUrl);
   } catch {
     // 窗口在后端就绪前被用户关掉：无需再加载
   }
   createTray();
 }
 
-app.whenReady().then(() => {
-  startBackend();
-  bootstrap();
-  // macOS：点击 Dock 图标时如果没有任何窗口，重建主窗口
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) showMainWindow(mainWindowDeps());
+// 单实例：重复启动时把已有窗口拉到前台，避免两个进程抢同一个后端端口
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    showMainWindow(mainWindowDeps());
   });
-});
 
-// 只有所有窗口都关闭（主窗口 + 专业版）才退出进程，专业版不会因主窗口关闭而被带走
-app.on('window-all-closed', () => {
-  if (backendProcess) { backendProcess.kill(); backendProcess = null; }
-  if (process.platform !== 'darwin') app.quit();
-});
+  app.whenReady().then(() => {
+    startBackend();
+    bootstrap();
+    // macOS：点击 Dock 图标时如果没有任何窗口，重建主窗口
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) showMainWindow(mainWindowDeps());
+    });
+  });
 
-app.on('before-quit', () => {
-  if (backendProcess) { backendProcess.kill(); backendProcess = null; }
-});
+  // 关闭所有窗口即退出应用；后端进程统一在 before-quit 里清理（避免重复 kill）
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+
+  app.on('before-quit', () => {
+    app.isQuiting = true;
+    if (backendProcess) {
+      try { backendProcess.kill(); } catch {}
+      backendProcess = null;
+    }
+  });
+}

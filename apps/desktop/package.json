@@ -4,15 +4,19 @@
   "main": "main.cjs",
   "scripts": {
     "dev": "electron .",
-    "build": "electron-builder"
+    "dist": "node scripts/package.mjs",
+    "dist:dir": "node scripts/package.mjs --dir",
+    "build": "node scripts/package.mjs"
   },
   "devDependencies": {
     "electron": "^45.2.3",
-    "electron-builder": "^25.0.0"
+    "electron-builder": "^25.0.0",
+    "rcedit": "^5.0.2"
   },
   "build": {
     "appId": "com.resume.agent",
     "productName": "AI简历助手",
+    "afterPack": "scripts/after-pack.cjs",
     "directories": {
       "output": "dist"
     },
@@ -25,14 +29,29 @@
       "ipc/**/*",
       "windows/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "build-resources/backend",
+        "to": "backend"
+      }
+    ],
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false,
+      "artifactName": "AI简历助手-${version}-安装包.${ext}"
     },
     "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AI简历助手",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico"
+      "installerHeaderIcon": "assets/icon.ico",
+      "deleteAppDataOnUninstall": false
     }
   }
 }

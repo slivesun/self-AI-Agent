@@ -1,0 +1,9 @@
+﻿pnpm.exe : $ pnpm --filter @resume-agent/desktop run dist
+所在位置 C:\Users\18231\AppData\Local\Doubao\User Data\sandbox_runtime\bases\772984f6fd3a8ae0ae7d2422cd7c2bfa\node\pnpm.ps1
+:14 字符: 3
++   & "$basedir/node_modules/pnpm/pnpm.exe"   $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ pnpm --filter...esktop run dist:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+$ node scripts/package.mjs

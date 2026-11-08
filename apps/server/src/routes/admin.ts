@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 import { db } from '../db.js';
 import { requireAuth } from '../auth.js';
+import { getSetting, setSetting, maskSecret } from '../settings.js';
 import { parsePdf, parseDocx, extractProfileFromText, parseResumeWithLLM } from '../parse.js';
 import { fixFilename } from '../utils.js';
 import type { QAPair } from '@resume-agent/shared';
@@ -116,9 +117,69 @@ router.get('/sessions/:id/messages', requireAuth, (req, res) => {
   const rows = db.prepare('SELECT * FROM visitor_messages WHERE session_id = ? ORDER BY created_at ASC').all(req.params.id) as any[];
   const list = rows.map(r => ({
     id: r.id, sessionId: r.session_id, role: r.role, content: r.content,
-    citations: JSON.parse(r.citations), answered: !!r.answered, createdAt: r.created_at
+    citations: JSON.parse(r.citations || '[]'), answered: !!r.answered, createdAt: r.created_at
   }));
   res.json({ ok: true, data: { list } });
+});
+
+// ===== 管理操作审计 =====
+router.get('/audit', requireAuth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT id, user_id, method, path, status, ip_hash, created_at
+    FROM admin_audit_logs ORDER BY id DESC LIMIT 100
+  `).all() as any[];
+  res.json({
+    ok: true,
+    data: {
+      list: rows.map((r) => ({
+        id: r.id, userId: r.user_id, method: r.method, path: r.path,
+        status: r.status, ipHash: r.ip_hash, createdAt: r.created_at,
+      })),
+    },
+  });
+});
+
+// ===== 模型设置（Key 存数据库，避免打进安装包） =====
+router.get('/settings/llm', requireAuth, (req, res) => {
+  const envKey = (process.env.ARK_API_KEY || '').trim();
+  const dbKey = (getSetting('ark_api_key') || '').trim();
+  const envModel = (process.env.ARK_MODEL || '').trim();
+  const dbModel = (getSetting('ark_model') || '').trim();
+  const key = envKey || dbKey;
+  res.json({
+    ok: true,
+    data: {
+      hasApiKey: !!key,
+      apiKeyMasked: key ? maskSecret(key) : '',
+      apiKeySource: envKey ? 'env' : dbKey ? 'db' : 'none',
+      model: envModel || dbModel || 'doubao-seed-2-0-mini-260428',
+      modelSource: envModel ? 'env' : dbModel ? 'db' : 'default',
+      editable: !envKey,
+    },
+  });
+});
+
+router.put('/settings/llm', requireAuth, (req, res) => {
+  const { apiKey, model, clearApiKey } = req.body || {};
+
+  if (clearApiKey === true) {
+    setSetting('ark_api_key', null);
+  } else if (typeof apiKey === 'string' && apiKey.trim()) {
+    const value = apiKey.trim();
+    if (value.length > 200) return res.status(400).json({ ok: false, error: 'API Key 过长' });
+    if (!/^[A-Za-z0-9._-]+$/.test(value)) return res.status(400).json({ ok: false, error: 'API Key 格式不正确' });
+    setSetting('ark_api_key', value);
+  }
+
+  if (typeof model === 'string' && model.trim()) {
+    const value = model.trim();
+    if (value.length > 64 || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/.test(value)) {
+      return res.status(400).json({ ok: false, error: '模型名格式不正确' });
+    }
+    setSetting('ark_model', value);
+  }
+
+  res.json({ ok: true });
 });
 
 export default router;

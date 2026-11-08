@@ -7,6 +7,7 @@ import PersonaPage from './pages/admin/PersonaPage';
 import LinksPage from './pages/admin/LinksPage';
 import AnalyticsPage from './pages/admin/AnalyticsPage';
 import KnowledgePage from './pages/admin/KnowledgePage';
+import SettingsPage from './pages/admin/SettingsPage';
 import VisitorChatPage from './pages/VisitorChatPage';
 import ProShell from './pages/pro/ProShell';
 import DesktopTitleBar from './components/DesktopTitleBar';
@@ -35,8 +36,9 @@ export default function App() {
             <Route path="links" element={<LinksPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="knowledge" element={<KnowledgePage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/c/:slug" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </div>
     </div>

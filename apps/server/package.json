@@ -4,10 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/smoke-test.mjs",
+    "backup": "node scripts/backup.mjs",
     "start": "node --experimental-sqlite dist/index.js"
   },
   "dependencies": {
+    "@resume-agent/shared": "workspace:*",
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
@@ -21,6 +25,7 @@
     "@types/express": "^4.17.0",
     "@types/jsonwebtoken": "^9.0.0",
     "@types/node": "^22.0.0",
+    "esbuild": "0.28.2",
     "typescript": "^5.6.0"
   }
 }

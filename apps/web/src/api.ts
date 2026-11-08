@@ -24,6 +24,7 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
 }
 
 export const api = {
+  getDefaultLink: () => request('/api/default-link'),
   login: (username: string, password: string) =>
     request('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   changePassword: (oldPassword: string, newPassword: string) =>
@@ -53,6 +54,10 @@ export const api = {
   getAnalytics: () => request('/api/admin/analytics/summary'),
   getSessionMessages: (sessionId: string) => request(`/api/admin/sessions/${sessionId}/messages`),
 
+  getLlmSettings: () => request('/api/admin/settings/llm'),
+  saveLlmSettings: (data: { apiKey?: string; model?: string; clearApiKey?: boolean }) =>
+    request('/api/admin/settings/llm', { method: 'PUT', body: JSON.stringify(data) }),
+
   visitorMe: () => request('/api/auth/visitor/me'),
   visitorInit: (slug: string, data: { visitorId?: string; code?: string }) =>
     request(`/api/c/${slug}/session`, { method: 'POST', body: JSON.stringify(data) }),
@@ -69,15 +74,19 @@ export const api = {
 };
 
 // SSE stream reader
+// token 是发送消息时服务端返回的短时 streamToken（EventSource 不能带 Authorization 头，所以放 query）
 export function streamRun(
   runId: string,
+  streamToken: string,
   sessionId: string,
   onDelta: (text: string) => void,
   onCitations: (c: any[]) => void,
   onDone: () => void,
   onError?: () => void,
 ) {
-  const es = new EventSource(`/api/runs/${runId}/events?sessionId=${sessionId}`);
+  const es = new EventSource(
+    `/api/runs/${encodeURIComponent(runId)}/events?sessionId=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(streamToken)}`,
+  );
   let finished = false;
   es.addEventListener('delta', (e) => {
     const data = JSON.parse(e.data);

@@ -3,12 +3,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import fs from 'fs';
+import { hashPassword } from './password.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.resolve(__dirname, '../../data/resume-agent.db');
+// 桌面安装包里安装目录是只读的，数据库必须放在用户数据目录；
+// 由 Electron 主进程通过 RESUME_DATA_DIR 传入，源码直跑时回退到仓库内 apps/data。
+export const DATA_DIR = process.env.RESUME_DATA_DIR
+  ? path.resolve(process.env.RESUME_DATA_DIR)
+  : path.resolve(__dirname, '../../data');
+const DB_PATH = path.join(DATA_DIR, 'resume-agent.db');
 
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 export const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL');
@@ -26,7 +31,8 @@ export function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      name TEXT NOT NULL DEFAULT 'Owner'
+      name TEXT NOT NULL DEFAULT 'Owner',
+      must_change_password INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS profiles (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -91,11 +97,44 @@ export function initDb() {
     );
   `);
 
+  // 运行时配置（模型 Key、模型名等），避免把密钥写进安装包
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  // 管理端操作审计（谁在什么时候改了什么接口）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      method TEXT NOT NULL,
+      path TEXT NOT NULL,
+      status INTEGER,
+      ip_hash TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  runMigrations();
+
+  // 老库补列：强制改密标记
+  try { db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0'); } catch {}
+
   // Seed default owner
   const owner = db.prepare('SELECT id FROM users WHERE username = ?').get('admin') as { id: number } | undefined;
   if (!owner) {
-    const hash = crypto.createHash('sha256').update('admin123').digest('hex');
-    db.prepare('INSERT INTO users (username, password_hash, name) VALUES (?, ?, ?)').run('admin', hash, 'Owner');
+    // 默认口令仅用于首次启动；用默认口令创建的账号必须改密后才能使用后台
+    const initPassword = (process.env.ADMIN_INIT_PASSWORD || '').trim();
+    const password = initPassword || 'admin123';
+    const mustChange = initPassword ? 0 : 1;
+    db.prepare('INSERT INTO users (username, password_hash, name, must_change_password) VALUES (?, ?, ?, ?)')
+      .run('admin', hashPassword(password), 'Owner', mustChange);
+    if (!initPassword) {
+      console.warn('[db] 已创建默认管理员 admin/admin123，首次登录必须修改密码');
+    }
   }
 
   // Seed default profile (draft + published)
@@ -157,5 +196,51 @@ export function initDb() {
     db.prepare('INSERT INTO share_links (id, slug, label, ref) VALUES (?, ?, ?, ?)').run(
       crypto.randomUUID(), generateSlug(), '默认链接', 'default'
     );
+  }
+}
+
+/**
+ * 版本化迁移：记录"引入迁移台账之后"的结构变更。
+ * 更早的历史结构仍由 initDb 里的 CREATE IF NOT EXISTS 保证幂等。
+ * 新增变更请追加到 migrations 数组，不要再散落 try/catch ALTER。
+ */
+function runMigrations() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  const applied = new Set(
+    (db.prepare('SELECT version FROM schema_migrations').all() as any[]).map((r) => Number(r.version)),
+  );
+
+  const migrations: { version: number; name: string; up: () => void }[] = [
+    {
+      version: 1,
+      name: 'add-core-indexes',
+      up: () => {
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_visitor_messages_session ON visitor_messages(session_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_visitor_sessions_visitor ON visitor_sessions(visitor_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_visitor_messages_role_day ON visitor_messages(role, created_at);
+          CREATE INDEX IF NOT EXISTS idx_qa_enabled ON qa_pairs(enabled);
+          CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_logs(created_at);
+        `);
+      },
+    },
+    {
+      version: 2,
+      name: 'share-link-index',
+      up: () => db.exec('CREATE INDEX IF NOT EXISTS idx_visitor_sessions_link ON visitor_sessions(share_link_id)'),
+    },
+  ];
+
+  for (const m of migrations) {
+    if (applied.has(m.version)) continue;
+    m.up();
+    db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(m.version);
+    console.log(`[db] 迁移已应用：${m.version}-${m.name}`);
   }
 }

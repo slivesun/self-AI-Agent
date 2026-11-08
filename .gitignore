@@ -1,7 +1,9 @@
 node_modules/
 dist/
 apps/web/dist/
+apps/server/dist/
 apps/desktop/dist/
+apps/desktop/build-resources/
 apps/data/
 .env
 *.db

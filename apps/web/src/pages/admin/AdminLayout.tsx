@@ -13,6 +13,7 @@ const menuItems = [
   { key: '/admin/knowledge', label: '知识文档' },
   { key: '/admin/links', label: '分享链接' },
   { key: '/admin/analytics', label: '会话分析' },
+  { key: '/admin/settings', label: '模型设置' },
 ];
 
 export default function AdminLayout() {
@@ -24,6 +25,16 @@ export default function AdminLayout() {
   const handleLogout = () => {
     clearToken();
     navigate('/login');
+  };
+
+  // 预览对话页：slug 由后端给出，避免把某个库的 slug 写死在界面上
+  const openPreview = async () => {
+    try {
+      const link = await api.getDefaultLink();
+      window.open(`/c/${link.slug}`, 'resume-chat');
+    } catch (e: any) {
+      message.error(e.message || '还没有可用的对话链接');
+    }
   };
 
   const onChangePwd = async () => {
@@ -55,7 +66,7 @@ export default function AdminLayout() {
       <Layout>
         <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
           <Space>
-            <Button icon={<MessageOutlined />} type="primary" ghost onClick={() => window.open('/c/yw2h7ngjq6', 'resume-chat')}>预览对话页</Button>
+            <Button icon={<MessageOutlined />} type="primary" ghost onClick={openPreview}>预览对话页</Button>
             <Button onClick={() => setPwdOpen(true)}>修改密码</Button>
             <Button danger onClick={handleLogout}>退出登录</Button>
           </Space>

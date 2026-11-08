@@ -1,13 +1,47 @@
 import OpenAI from 'openai';
 import { getPublicProfile, getPersona, getEnabledQA, getKnowledgeDocs } from './agent.js';
+import { getSetting } from './settings.js';
 import type { Profile, Persona, QAPair } from '@resume-agent/shared';
 
-const client = new OpenAI({
-  apiKey: process.env.ARK_API_KEY,
-  baseURL: 'https://ark.cn-beijing.volces.com/api/v3',
-});
+const BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
+const DEFAULT_MODEL = 'doubao-seed-2-0-mini-260428';
 
-const MODEL = process.env.ARK_MODEL || 'doubao-seed-2-0-mini-260428';
+/** Key 优先环境变量，其次后台写入的运行时配置；都没有时在调用处明确报错 */
+function resolveApiKey(): string {
+  return (process.env.ARK_API_KEY || getSetting('ark_api_key') || '').trim();
+}
+
+function resolveModel(): string {
+  return (process.env.ARK_MODEL || getSetting('ark_model') || DEFAULT_MODEL).trim();
+}
+
+// 客户端按 Key 缓存，后台改 Key 后自动重建
+let cachedClient: { key: string; client: OpenAI } | null = null;
+
+function getClient(): OpenAI {
+  const apiKey = resolveApiKey();
+  if (!apiKey) {
+    throw new Error('未配置大模型 API Key，请登录后台在「模型设置」中填写');
+  }
+  if (!cachedClient || cachedClient.key !== apiKey) {
+    cachedClient = { key: apiKey, client: new OpenAI({ apiKey, baseURL: BASE_URL }) };
+  }
+  return cachedClient.client;
+}
+
+/**
+ * 客户端可传模型名，但必须收敛在白名单命名空间内，
+ * 防止被当成"随便指定任意模型"的入口。
+ */
+export function normalizeModel(requested?: string): string {
+  const fallback = resolveModel();
+  if (!requested || typeof requested !== 'string') return fallback;
+  const value = requested.trim();
+  if (value.length > 64) return fallback;
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/.test(value)) return fallback;
+  if (!/^(doubao|glm|kimi|deepseek|qwen|ep-)/i.test(value)) return fallback;
+  return value;
+}
 
 // 从档案数据构建 System Prompt
 export function buildSystemPrompt(profile: Profile, persona: Persona, qaList: QAPair[] = []): string {
@@ -109,16 +143,23 @@ export function buildSystemPrompt(profile: Profile, persona: Persona, qaList: QA
   return lines.join('\n');
 }
 
-async function buildMessages(query: string, history: { role: string; content: string }[]) {
+async function buildMessages(
+  query: string,
+  history: { role: string; content: string }[],
+): Promise<OpenAI.ChatCompletionMessageParam[]> {
   const profile = getPublicProfile();
   const persona = getPersona();
   if (!profile || !persona) throw new Error('系统未配置档案');
   const qaList = getEnabledQA();
   const systemPrompt = buildSystemPrompt(profile, persona, qaList);
+  const historyMessages = history.slice(-10).map((m) => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: m.content,
+  })) as OpenAI.ChatCompletionMessageParam[];
   return [
-    { role: 'system' as const, content: systemPrompt },
-    ...history.slice(-10),
-    { role: 'user' as const, content: query },
+    { role: 'system', content: systemPrompt },
+    ...historyMessages,
+    { role: 'user', content: query },
   ];
 }
 
@@ -126,29 +167,37 @@ async function buildMessages(query: string, history: { role: string; content: st
 function getTemperature(model: string): number | undefined {
   // GLM、Kimi 系列只允许 temperature=1
   if (model.startsWith('glm-') || model.startsWith('kimi-')) return 1;
+  const persona = getPersona() as any;
+  const t = Number(persona?.temperature);
+  if (Number.isFinite(t) && t >= 0 && t <= 2) return t;
   return 0.7;
 }
 
-// 调用 LLM（流式，通过回调逐 token 输出）
+// 调用 LLM（流式，通过回调逐 token 输出；signal 用于客户端断开时中断上游请求）
 export async function streamChatWithLLM(
   query: string,
   history: { role: string; content: string }[] = [],
   onToken: (token: string) => void,
   modelOverride?: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   const messages = await buildMessages(query, history);
-  const model = modelOverride || MODEL;
+  const model = normalizeModel(modelOverride);
   const temperature = getTemperature(model);
 
-  const stream = await client.chat.completions.create({
-    model,
-    messages,
-    temperature,
-    max_tokens: 5000,
-    stream: true,
-  });
+  const stream = await getClient().chat.completions.create(
+    {
+      model,
+      messages,
+      temperature,
+      max_tokens: 3000,
+      stream: true,
+    },
+    { signal, timeout: 60_000 },
+  );
 
   for await (const chunk of stream) {
+    if (signal?.aborted) break;
     const delta = chunk.choices[0]?.delta;
     if (delta?.content) onToken(delta.content);
   }

@@ -76,7 +76,8 @@ export default function VisitorChatPage() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   // 账号/密码用非受控输入 + ref 读取，避免浏览器自动填充与 React 受控值互相覆盖导致输入框“点不进去/输入被清空”
   const rememberedUser = rememberFlag ? localStorage.getItem('ra_visitor_remember_user') || '' : '';
-  const rememberedPass = rememberFlag ? localStorage.getItem('ra_visitor_remember_pass') || '' : '';
+  // 安全：不再把明文密码写进 localStorage，只记住账号；顺手清掉历史遗留的密码
+  localStorage.removeItem('ra_visitor_remember_pass');
   const [rememberMe, setRememberMe] = useState(rememberFlag);
   const [agreed, setAgreed] = useState(false);
   const [showAgreement, setShowAgreement] = useState(false);
@@ -342,7 +343,7 @@ export default function VisitorChatPage() {
     }
 
     try {
-      const { runId } = await api.visitorSend(slug!, {
+      const { runId, streamToken } = await api.visitorSend(slug!, {
         sessionId,
         visitorId: identityMode === 'guest' ? visitorId : undefined,
         content: text,
@@ -350,7 +351,7 @@ export default function VisitorChatPage() {
       });
       let firstToken = true;
       const es = streamRun(
-        runId, sessionId,
+        runId, streamToken, sessionId,
         (delta) => {
           setMessages(prev => prev.map(m => {
             if (m.id !== assistantMsgId) return m;
@@ -472,7 +473,6 @@ export default function VisitorChatPage() {
       if (rememberMe) {
         localStorage.setItem('ra_visitor_remember', '1');
         localStorage.setItem('ra_visitor_remember_user', data.data.username || username);
-        localStorage.setItem('ra_visitor_remember_pass', password);
       } else {
         localStorage.removeItem('ra_visitor_remember');
         localStorage.removeItem('ra_visitor_remember_user');
@@ -569,7 +569,7 @@ export default function VisitorChatPage() {
               </div>
 
               <input ref={authPassRef} name="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
-                placeholder={authMode === 'register' ? '设置密码（6-32位）' : '密码'} type="password" defaultValue={rememberedPass}
+                placeholder={authMode === 'register' ? '设置密码（6-32位）' : '密码'} type="password" defaultValue=""
                 onKeyDown={e => { if (e.key === 'Enter') { if (authMode === 'register') doRegister(); else doLogin(); } }}
                 style={{ width: '100%', boxSizing: 'border-box', padding: 10, marginBottom: 12, border: '1px solid #e5e8ef', borderRadius: 8, fontSize: 14 }} />
 
@@ -581,7 +581,7 @@ export default function VisitorChatPage() {
               {authMode === 'login' && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, fontSize: 13, color: '#666' }}>
                   <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} />
-                  记住账号密码
+                  记住账号
                 </label>
               )}
 

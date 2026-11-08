@@ -2,7 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // shared 包直接以 TS 源码作为入口；tsc 只做类型检查，产物由 esbuild 生成
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false
   },
   "include": ["src/**/*"]
 }
