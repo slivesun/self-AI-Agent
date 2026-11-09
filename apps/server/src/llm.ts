@@ -7,18 +7,18 @@ const BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const DEFAULT_MODEL = 'doubao-seed-2-0-mini-260428';
 
 /** Key 优先环境变量，其次后台写入的运行时配置；都没有时在调用处明确报错 */
-function resolveApiKey(): string {
+export function resolveApiKey(): string {
   return (process.env.ARK_API_KEY || getSetting('ark_api_key') || '').trim();
 }
 
-function resolveModel(): string {
+export function resolveModel(): string {
   return (process.env.ARK_MODEL || getSetting('ark_model') || DEFAULT_MODEL).trim();
 }
 
 // 客户端按 Key 缓存，后台改 Key 后自动重建
 let cachedClient: { key: string; client: OpenAI } | null = null;
 
-function getClient(): OpenAI {
+export function getLLMClient(): OpenAI {
   const apiKey = resolveApiKey();
   if (!apiKey) {
     throw new Error('未配置大模型 API Key，请登录后台在「模型设置」中填写');
@@ -185,7 +185,7 @@ export async function streamChatWithLLM(
   const model = normalizeModel(modelOverride);
   const temperature = getTemperature(model);
 
-  const stream = await getClient().chat.completions.create(
+  const stream = await getLLMClient().chat.completions.create(
     {
       model,
       messages,

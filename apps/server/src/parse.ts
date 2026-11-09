@@ -2,6 +2,7 @@ import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 import crypto from 'crypto';
 import type { Profile } from '@resume-agent/shared';
+import { getLLMClient, resolveModel } from './llm.js';
 
 // 解析 PDF 文件 buffer，返回纯文本
 export async function parsePdf(buffer: Buffer): Promise<string> {
@@ -258,12 +259,9 @@ function parseWorkAndProjects(text: string): { experiences: any[]; projects: any
 
 // 用 LLM 从简历文本提取结构化档案（兜底/增强）
 export async function parseResumeWithLLM(rawText: string): Promise<Partial<Profile> | null> {
-  const { default: OpenAI } = await import('openai');
-  const client = new OpenAI({
-    apiKey: process.env.ARK_API_KEY,
-    baseURL: 'https://ark.cn-beijing.volces.com/api/v3',
-  });
-  const model = process.env.ARK_MODEL || 'doubao-seed-2-0-mini-260428';
+  // 复用统一的客户端：Key 来源为环境变量或后台「模型设置」，缺 Key 时抛出中文提示
+  const client = getLLMClient();
+  const model = resolveModel();
 
   const prompt = `你是简历解析助手。从以下简历文本中提取结构化信息，严格输出 JSON（不要其他文字）。
 格式：

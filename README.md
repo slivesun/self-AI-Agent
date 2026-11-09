@@ -42,9 +42,12 @@ pnpm electron
 ## 打包 Windows 安装包
 
 ```bash
-pnpm pack        # 前端构建 → 后端构建 → 后端依赖部署 → NSIS 安装包
-pnpm pack:dir    # 只产出免安装目录（调试用，出包更快）
+pnpm run pack      # 前端构建 → 后端构建 → 后端依赖部署 → NSIS 安装包
+pnpm run pack:dir  # 只产出免安装目录（调试用，出包更快）
 ```
+
+> 注意必须用 `pnpm run pack`：`pnpm pack` 会被 pnpm 内置的打包命令（生成 tgz）抢走，
+> 不会执行本项目的打包脚本。
 
 产物位置（`apps/desktop/dist/`）：
 
@@ -63,8 +66,9 @@ resources/backend/
 └── .env.example       # 运行时配置模板（不含密钥）
 ```
 
-运行时数据写在 `%APPDATA%\AI简历助手\data\resume-agent.db`（用户数据目录），
-卸载时默认保留（`deleteAppDataOnUninstall: false`）；端口固定 3001。
+运行时数据写在 `%APPDATA%\@resume-agent\desktop\data\resume-agent.db`（Electron 用户数据目录，
+目录名取自 `apps/desktop/package.json` 的 name），卸载时默认保留（`deleteAppDataOnUninstall: false`）；
+端口固定 3001。
 
 打包注意：
 
@@ -75,7 +79,7 @@ resources/backend/
   `win.signAndEditExecutable`，改由 `apps/desktop/scripts/after-pack.cjs` 用 rcedit
   在 afterPack 阶段写入图标与版本信息。
 - `apps/server/.env` **不会**再被打进安装包（只生成空模板 `.env.example`）。模型 Key 由用户
-  在应用内后台「模型设置」填写，存本机数据库；也可以用 `%APPDATA%\AI简历助手\config\.env`。
+  在应用内后台「模型设置」填写，存本机数据库；也可以用 `%APPDATA%\@resume-agent\desktop\config\.env`。
 - 后端构建用 esbuild 逐文件转译，不做 tsc 类型检查（`pnpm build:server`）；
   类型检查单独跑 `pnpm --filter @resume-agent/server run typecheck`（CI 已接入）。
 - 冒烟测试：`pnpm --filter @resume-agent/server run smoke`（用临时数据目录起隔离实例，不碰真实数据）。

@@ -32,7 +32,11 @@ export const api = {
 
   getProfile: () => request('/api/admin/profile'),
   saveProfile: (profile: any) => request('/api/admin/profile', { method: 'PUT', body: JSON.stringify({ profile }) }),
-  publishProfile: () => request('/api/admin/profile/publish', { method: 'POST' }),
+  publishProfile: (profile?: any) =>
+    request('/api/admin/profile/publish', {
+      method: 'POST',
+      ...(profile ? { body: JSON.stringify({ profile }) } : {}),
+    }),
 
   getKnowledge: () => request('/api/admin/knowledge'),
   getKnowledgeDoc: (id: string) => request(`/api/admin/knowledge/${id}`),

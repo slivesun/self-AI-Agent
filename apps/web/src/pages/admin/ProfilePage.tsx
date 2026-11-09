@@ -41,11 +41,13 @@ export default function ProfilePage() {
       if (!json.ok) throw new Error(json.error);
       const { parsed } = json.data;
       // 合并解析结果到表单（只填充非空字段）
-      const current = form.getFieldsValue();
+      const current = form.getFieldsValue(true);
       const merged = { ...current, ...parsed };
       if (parsed.basics) merged.basics = { ...current.basics, ...parsed.basics };
       form.setFieldsValue(merged);
-      message.success('文件解析完成，请检查并补充内容');
+      // 解析结果必须落库成草稿，否则刷新页面就丢了（发布也是复制库里的草稿）
+      await api.saveProfile(merged);
+      message.success('文件解析完成，已保存为草稿，请检查并补充内容');
     } catch (e: any) {
       message.error('解析失败：' + e.message);
     } finally {
@@ -56,7 +58,7 @@ export default function ProfilePage() {
   const onSave = async () => {
     setSaving(true);
     try {
-      const values = form.getFieldsValue();
+      const values = form.getFieldsValue(true);
       await api.saveProfile(values);
       message.success('保存成功（草稿已保存，访客看到的是已发布版本）');
     } catch (e: any) {
@@ -69,7 +71,8 @@ export default function ProfilePage() {
   const onPublish = async () => {
     setPublishing(true);
     try {
-      await api.publishProfile();
+      // 把当前表单一起提交：后端先落草稿再发布，保证发布的就是界面上看到的内容
+      await api.publishProfile(form.getFieldsValue(true));
       message.success('已发布！访客现在可以看到最新内容');
     } catch (e: any) {
       message.error(e.message);

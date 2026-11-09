@@ -24,6 +24,11 @@ router.put('/profile', requireAuth, (req, res) => {
 });
 
 router.post('/profile/publish', requireAuth, (req, res) => {
+  // 支持携带当前表单内容：先落草稿再发布，避免"界面上的内容"和"发出去的内容"不一致
+  const incoming = req.body && req.body.profile;
+  if (incoming && typeof incoming === 'object') {
+    db.prepare('UPDATE profiles SET data = ?, updated_at = datetime(\'now\') WHERE id = 1').run(JSON.stringify(incoming));
+  }
   const row = db.prepare('SELECT data FROM profiles WHERE id = 1').get() as any;
   db.prepare('UPDATE published_profiles SET data = ?, updated_at = datetime(\'now\') WHERE id = 1').run(row.data);
   res.json({ ok: true, data: { publishedAt: new Date().toISOString() } });

@@ -131,7 +131,7 @@ async function main() {
   const envTemplate = [
     '# 运行时配置模板（本文件不含任何密钥值）',
     '# 模型 Key 建议在应用内「模型设置」填写；也可填到本文件后',
-    '# 复制到 %APPDATA%\\AI简历助手\\config\\.env',
+    '# 复制到 %APPDATA%\\@resume-agent\\desktop\\config\\.env',
     'ARK_API_KEY=',
     'ARK_MODEL=doubao-seed-2-0-mini-260428',
     '# 服务端口与监听地址（默认仅本机）',
