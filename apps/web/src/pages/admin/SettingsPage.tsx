@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, Form, Input, Button, Alert, Tag, message, Space } from 'antd';
+import { Card, Form, Input, Button, Alert, Tag, message, Space, Select } from 'antd';
+import { MODEL_OPTIONS } from '@resume-agent/shared';
 import { api } from '../../api';
 
 interface LlmSettings {
@@ -8,6 +9,7 @@ interface LlmSettings {
   apiKeySource: 'env' | 'db' | 'none';
   model: string;
   modelSource: 'env' | 'db' | 'default';
+  envModel?: string | null;
   editable: boolean;
 }
 
@@ -100,8 +102,21 @@ export default function SettingsPage() {
           />
         </Form.Item>
 
-        <Form.Item name="model" label="模型名">
-          <Input placeholder="例如 doubao-seed-2-0-mini-260428" />
+        <Form.Item
+          name="model"
+          label="模型"
+          extra={
+            data?.envModel
+              ? `环境变量里也配置了 ${data.envModel}；在这里保存后，以此处选择的模型为准`
+              : `当前来源：${sourceLabel[data?.modelSource || 'default']}（${data?.model || '—'}）`
+          }
+        >
+          <Select
+            placeholder="选择要使用的模型"
+            options={MODEL_OPTIONS.map(m => ({ value: m.value, label: `${m.label}（${m.value}）` }))}
+            showSearch
+            optionFilterProp="label"
+          />
         </Form.Item>
 
         <Space>

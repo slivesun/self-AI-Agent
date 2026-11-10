@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.4.0",
+    "@resume-agent/shared": "workspace:*",
     "antd": "^5.20.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

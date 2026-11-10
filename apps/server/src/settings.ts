@@ -17,6 +17,14 @@ export function setSetting(key: string, value: string | null): void {
   `).run(key, value);
 }
 
+/** 知识归档开关：是否允许大模型把这些文档作为知识点分析并用于回答 */
+export const KNOWLEDGE_ANSWER_KEY = 'knowledge_answer_enabled';
+
+/** 默认开启（未写入过时为 true），只有显式写入 "0" 才视为关闭 */
+export function isKnowledgeAnswerEnabled(): boolean {
+  return getSetting(KNOWLEDGE_ANSWER_KEY) !== '0';
+}
+
 /** 脱敏展示：只保留首尾各 4 位 */
 export function maskSecret(value: string): string {
   if (!value) return '';

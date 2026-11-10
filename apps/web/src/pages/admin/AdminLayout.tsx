@@ -50,8 +50,10 @@ export default function AdminLayout() {
   };
 
   return (
-    <Layout style={{ minHeight: '100%' }}>
-      <Sider theme="dark" width={200}>
+    // 外层 Layout 必须有确定高度：它默认 flex:auto（内容撑高），会顶出 .app-content 的
+    // overflow:hidden 被裁掉，导致内部 Content 永远没有可滚动的剩余高度
+    <Layout className="admin-layout" style={{ height: '100%', minHeight: 0, overflow: 'hidden' }}>
+      <Sider className="admin-sider" theme="dark" width={200}>
         <div style={{ height: 32, margin: 16, color: '#fff', fontSize: 16, fontWeight: 600 }}>
           简历 Agent 后台
         </div>
@@ -64,14 +66,18 @@ export default function AdminLayout() {
         />
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+        <Header className="admin-header" style={{ background: '#fff', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
           <Space>
             <Button icon={<MessageOutlined />} type="primary" ghost onClick={openPreview}>预览对话页</Button>
             <Button onClick={() => setPwdOpen(true)}>修改密码</Button>
             <Button danger onClick={handleLogout}>退出登录</Button>
           </Space>
         </Header>
-        <Content style={{ padding: 24, background: '#f0f2f5' }}>
+        <Content
+          className="admin-content"
+          // 滚动能力写进 inline style：antd 的 flex 样式是运行时注入的，避免样式顺序把它盖掉
+          style={{ padding: 24, background: '#f0f2f5', flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}
+        >
           <Outlet />
         </Content>
       </Layout>

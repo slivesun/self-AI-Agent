@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 import { db } from '../db.js';
 import { requireAuth } from '../auth.js';
+import { getSetting, setSetting, isKnowledgeAnswerEnabled, KNOWLEDGE_ANSWER_KEY } from '../settings.js';
 import { parsePdf, parseDocx } from '../parse.js';
 import { fixFilename } from '../utils.js';
 
@@ -16,6 +17,23 @@ router.get('/', requireAuth, (req, res) => {
     tags: JSON.parse(r.tags || '[]'), size: r.size, createdAt: r.created_at,
   }));
   res.json({ ok: true, data: { list } });
+});
+
+// 知识归档开关：是否允许大模型把这些文档作为知识点分析、用于回答
+// 注意必须放在 /:id 之前，否则会被当成文档 id
+router.get('/config', requireAuth, (req, res) => {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM knowledge_docs').get() as any).c;
+  res.json({ ok: true, data: { allowLlmAnalyze: isKnowledgeAnswerEnabled(), docCount: count } });
+});
+
+router.put('/config', requireAuth, (req, res) => {
+  const { allowLlmAnalyze } = req.body || {};
+  if (typeof allowLlmAnalyze !== 'boolean') {
+    return res.status(400).json({ ok: false, error: '参数 allowLlmAnalyze 必须是布尔值' });
+  }
+  // 存 "1"/"0"：清空该键会回到默认开启，所以关闭时不能写空值
+  setSetting(KNOWLEDGE_ANSWER_KEY, allowLlmAnalyze ? '1' : '0');
+  res.json({ ok: true, data: { allowLlmAnalyze: getSetting(KNOWLEDGE_ANSWER_KEY) !== '0' } });
 });
 
 router.get('/:id', requireAuth, (req, res) => {

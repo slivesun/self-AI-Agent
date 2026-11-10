@@ -31,6 +31,8 @@ export const api = {
     request('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ oldPassword, newPassword }) }),
 
   getProfile: () => request('/api/admin/profile'),
+  getProfileSnapshots: () => request('/api/admin/profile/snapshots'),
+  getProfileSnapshot: (id: string) => request(`/api/admin/profile/snapshots/${id}`),
   saveProfile: (profile: any) => request('/api/admin/profile', { method: 'PUT', body: JSON.stringify({ profile }) }),
   publishProfile: (profile?: any) =>
     request('/api/admin/profile/publish', {
@@ -39,6 +41,9 @@ export const api = {
     }),
 
   getKnowledge: () => request('/api/admin/knowledge'),
+  getKnowledgeConfig: () => request('/api/admin/knowledge/config'),
+  saveKnowledgeConfig: (allowLlmAnalyze: boolean) =>
+    request('/api/admin/knowledge/config', { method: 'PUT', body: JSON.stringify({ allowLlmAnalyze }) }),
   getKnowledgeDoc: (id: string) => request(`/api/admin/knowledge/${id}`),
   deleteKnowledge: (id: string) => request(`/api/admin/knowledge/${id}`, { method: 'DELETE' }),
   updateKnowledgeTags: (id: string, tags: string[]) => request(`/api/admin/knowledge/${id}/tags`, { method: 'PUT', body: JSON.stringify({ tags }) }),

@@ -95,6 +95,13 @@ export function initDb() {
       file_type TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    -- 历史解析快照：每次上传简历解析成功后存一份，后台可挑选一份回填到档案表单
+    CREATE TABLE IF NOT EXISTS profile_snapshots (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL DEFAULT '',
+      data TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   // 运行时配置（模型 Key、模型名等），避免把密钥写进安装包

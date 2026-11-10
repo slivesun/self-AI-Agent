@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Table, Button, Modal, Tag, message, Space, Popconfirm, Input } from 'antd';
+import { Card, Table, Button, Modal, Tag, message, Space, Popconfirm, Input, Switch } from 'antd';
 import { UploadOutlined, EyeOutlined, DeleteOutlined, EditOutlined, FormOutlined } from '@ant-design/icons';
 import { api, getToken } from '../../api';
 
@@ -18,6 +18,9 @@ export default function KnowledgePage() {
   const [renameDoc, setRenameDoc] = useState<any>(null);
   const [renameName, setRenameName] = useState('');
   const [renameExt, setRenameExt] = useState('');
+  // 知识归档总开关：是否允许大模型把这些文档作为知识点分析、用于回答
+  const [allowLlmAnalyze, setAllowLlmAnalyze] = useState(true);
+  const [switching, setSwitching] = useState(false);
 
   const load = async () => {
     const res: any = await api.getKnowledge();
@@ -27,7 +30,29 @@ export default function KnowledgePage() {
     setAllTags([...tagSet]);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.getKnowledgeConfig()
+      .then((d: any) => setAllowLlmAnalyze(!!d.allowLlmAnalyze))
+      .catch(() => {});
+  }, []);
+
+  // 切换后立刻落库：下一轮对话构建 System Prompt 时读取，无需重启服务
+  const onToggleLlmAnalyze = async (checked: boolean) => {
+    const prev = allowLlmAnalyze;
+    setAllowLlmAnalyze(checked); // 先乐观更新，失败再回滚
+    setSwitching(true);
+    try {
+      const d: any = await api.saveKnowledgeConfig(checked);
+      setAllowLlmAnalyze(!!d.allowLlmAnalyze);
+      message.success(checked ? '已开启：大模型会参考知识归档回答问题' : '已关闭：回答不再引用知识归档');
+    } catch (e: any) {
+      setAllowLlmAnalyze(prev);
+      message.error(e.message || '设置保存失败');
+    } finally {
+      setSwitching(false);
+    }
+  };
 
   // 第一步：打开标签选择弹框
   const openUpload = () => {
@@ -106,6 +131,28 @@ export default function KnowledgePage() {
       <Button type="primary" icon={<UploadOutlined />} loading={loading} onClick={openUpload}>上传文档</Button>
     }>
       <input ref={fileInputRef} type="file" accept=".pdf,.docx,.md,.markdown,.txt,.csv,.xlsx" style={{ display: 'none' }} onChange={onFileChange} />
+
+      <div style={{
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
+        marginBottom: 16, padding: '12px 16px', background: '#fafafa',
+        border: '1px solid #f0f0f0', borderRadius: 8,
+      }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>允许大模型把知识归档作为知识点分析</div>
+          <div style={{ color: '#888', fontSize: 12, marginTop: 4, lineHeight: 1.7 }}>
+            开启后，对话回答会参考下方文档并在句末标注来源；关闭后只用档案与 Q&amp;A 库回答。切换对下一次提问立即生效。
+          </div>
+        </div>
+        <div style={{ flex: '0 0 auto', paddingTop: 2 }}>
+          <Switch
+            checked={allowLlmAnalyze}
+            loading={switching}
+            onChange={onToggleLlmAnalyze}
+            checkedChildren="开启"
+            unCheckedChildren="关闭"
+          />
+        </div>
+      </div>
 
       <Table dataSource={list} columns={columns} rowKey="id" pagination={false} />
 

@@ -257,10 +257,170 @@ function parseWorkAndProjects(text: string): { experiences: any[]; projects: any
   return { experiences, projects };
 }
 
+// ===== 规则结果与大模型结果的合并 =====
+export type LLMFailureCode = 'no_key' | 'quota' | 'timeout' | 'network' | 'invalid_json' | 'truncated' | 'unknown';
+
+export interface LLMParseError {
+  code: LLMFailureCode;
+  message: string;
+}
+
+export interface LLMParseResult {
+  profile: Partial<Profile> | null;
+  error: LLMParseError | null;
+}
+
+// 输出上限：一份中文简历的结构化 JSON 实测要 5000~8000 字符（且该模型带思考过程，
+// 会先消耗大量 token），2000 时必然在数组中间被截断，整份 JSON 解析失败。
+const MAX_OUTPUT_TOKENS = 8000;
+
+function isNonEmpty(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  if (typeof v === 'string') return v.trim() !== '';
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === 'object') return Object.keys(v as object).length > 0;
+  return true;
+}
+
+/**
+ * 规则解析打底，大模型结果只覆盖「非空」字段。
+ * 避免模型返回空值/空数组时把规则已经抓到的内容抹掉。
+ */
+export function mergeProfile(rule: Partial<Profile>, llm: Partial<Profile>): Partial<Profile> {
+  const out: any = { ...rule };
+  for (const key of Object.keys(llm) as (keyof Partial<Profile>)[]) {
+    const lv: any = (llm as any)[key];
+    if (!isNonEmpty(lv)) continue;
+    if (key === 'basics') {
+      out.basics = { ...(out.basics || {}) };
+      for (const field of Object.keys(lv)) {
+        if (isNonEmpty(lv[field])) out.basics[field] = lv[field];
+      }
+      continue;
+    }
+    if (key === 'experiences' || key === 'projects') {
+      const keyOf = key === 'experiences'
+        ? (x: any) => String(x?.company || '').replace(/\s+/g, '')
+        : (x: any) => String(x?.name || '').replace(/\s+/g, '');
+      out[key] = unionList(Array.isArray(out[key]) ? out[key] : [], lv as any[], keyOf);
+      continue;
+    }
+    out[key] = lv;
+  }
+  return out;
+}
+
+/**
+ * 规则与大模型都抓到同一条经历/项目时，不能只留一份：
+ * 以字段更全的大模型结果为主，规则结果里非空的字段再补进去；两边独有的一条都保留。
+ */
+function unionList(ruleList: any[], llmList: any[], keyOf: (x: any) => string): any[] {
+  const merged = new Map<string, any>();
+  for (const item of ruleList) {
+    const k = keyOf(item);
+    if (!k) continue;
+    merged.set(k, item);
+  }
+  for (const item of llmList) {
+    const k = keyOf(item);
+    if (!k) {
+      merged.set(`__llm_${merged.size}`, item);
+      continue;
+    }
+    const existing = merged.get(k);
+    if (!existing) {
+      merged.set(k, item);
+      continue;
+    }
+    const combined: any = { ...item };
+    for (const field of Object.keys(existing)) {
+      if (!isNonEmpty(combined[field]) && isNonEmpty(existing[field])) combined[field] = existing[field];
+    }
+    merged.set(k, combined);
+  }
+  return [...merged.values()];
+}
+
+/** 从被截断的模型输出里尽力恢复出一个完整 JSON 对象 */
+function repairTruncatedJson(raw: string): { value: any; repaired: boolean } | null {
+  const start = raw.indexOf('{');
+  if (start < 0) return null;
+  const s = raw.slice(start);
+
+  // 1) 原样解析（正常情况走这里）
+  try {
+    const m = s.match(/\{[\s\S]*\}/);
+    if (m) return { value: JSON.parse(m[0]), repaired: false };
+  } catch {
+    /* 进入修复流程 */
+  }
+
+  // 2) 扫描出所有「安全切点」（逗号之后 / 括号闭合之后），从后往前补全括号
+  const checkpoints: Array<{ end: number; closers: string }> = [];
+  const stack: string[] = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === '{') { stack.push('}'); continue; }
+    if (c === '[') { stack.push(']'); continue; }
+    if (c === '}' || c === ']') {
+      if (stack[stack.length - 1] === c) stack.pop();
+      checkpoints.push({ end: i + 1, closers: [...stack].reverse().join('') });
+      continue;
+    }
+    if (c === ',' && stack.length) {
+      checkpoints.push({ end: i, closers: [...stack].reverse().join('') });
+    }
+  }
+
+  for (let i = checkpoints.length - 1; i >= 0 && i > checkpoints.length - 300; i--) {
+    const cp = checkpoints[i];
+    const body = s.slice(0, cp.end).replace(/[,\s]+$/, '');
+    try {
+      return { value: JSON.parse(body + cp.closers), repaired: true };
+    } catch {
+      /* 继续往前找更短的切点 */
+    }
+  }
+  return null;
+}
+
+function classifyLLMError(e: any): LLMParseError {
+  const msg = String(e?.message || e || '').slice(0, 200);
+  const status = e?.status ?? e?.response?.status;
+  if (msg.includes('未配置大模型 API Key')) {
+    return { code: 'no_key', message: '未配置大模型 API Key，请在后台「模型设置」中填写' };
+  }
+  if (status === 429 || /429|usage limit|rate limit|quota|exceeded/i.test(msg)) {
+    return { code: 'quota', message: '大模型调用额度或频率已达上限，可稍后重试或在「模型设置」更换模型' };
+  }
+  if (/timeout|timed out|ETIMEDOUT|aborted/i.test(msg)) {
+    return { code: 'timeout', message: '大模型响应超时' };
+  }
+  if (/fetch failed|ECONNRESET|ECONNREFUSED|ENOTFOUND|socket hang up/i.test(msg)) {
+    return { code: 'network', message: '无法连接大模型服务，请检查网络' };
+  }
+  return { code: 'unknown', message: msg || '大模型调用失败' };
+}
+
 // 用 LLM 从简历文本提取结构化档案（兜底/增强）
-export async function parseResumeWithLLM(rawText: string): Promise<Partial<Profile> | null> {
-  // 复用统一的客户端：Key 来源为环境变量或后台「模型设置」，缺 Key 时抛出中文提示
-  const client = getLLMClient();
+// 失败时不再静默返回 null，而是把原因带出去，让上层能提示用户
+export async function parseResumeWithLLM(rawText: string): Promise<LLMParseResult> {
+  let client;
+  try {
+    // 复用统一的客户端：Key 来源为环境变量或后台「模型设置」
+    client = getLLMClient();
+  } catch (e: any) {
+    return { profile: null, error: classifyLLMError(e) };
+  }
   const model = resolveModel();
 
   const prompt = `你是简历解析助手。从以下简历文本中提取结构化信息，严格输出 JSON（不要其他文字）。
@@ -282,13 +442,25 @@ ${rawText.slice(0, 4000)}`;
       model,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1,
-      max_tokens: 2000,
+      max_tokens: MAX_OUTPUT_TOKENS,
     });
     const text = res.choices[0]?.message?.content || '';
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]) as Partial<Profile>;
-  } catch (e) {
-    console.error('LLM 解析失败:', e);
+    if (!text.trim()) {
+      return { profile: null, error: { code: 'invalid_json', message: '大模型返回内容为空' } };
+    }
+    const repaired = repairTruncatedJson(text);
+    if (!repaired) {
+      return { profile: null, error: { code: 'invalid_json', message: '大模型返回的不是可解析的 JSON' } };
+    }
+    if (repaired.repaired) {
+      return {
+        profile: repaired.value as Partial<Profile>,
+        error: { code: 'truncated', message: '大模型输出被截断，已恢复部分内容，请核对是否缺项' },
+      };
+    }
+    return { profile: repaired.value as Partial<Profile>, error: null };
+  } catch (e: any) {
+    console.error('LLM 解析失败:', e?.message || e);
+    return { profile: null, error: classifyLLMError(e) };
   }
-  return null;
 }

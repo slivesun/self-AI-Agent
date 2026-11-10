@@ -133,7 +133,7 @@ async function main() {
     '# 模型 Key 建议在应用内「模型设置」填写；也可填到本文件后',
     '# 复制到 %APPDATA%\\@resume-agent\\desktop\\config\\.env',
     'ARK_API_KEY=',
-    'ARK_MODEL=doubao-seed-2-0-mini-260428',
+    'ARK_MODEL=doubao-seed-2-0-lite-260428',
     '# 服务端口与监听地址（默认仅本机）',
     'PORT=3001',
     'HOST=127.0.0.1',

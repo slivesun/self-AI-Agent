@@ -28,6 +28,34 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helv
 .app-content .chat-layout,
 .app-content .chat-page { height: 100%; }
 
+// ===== 后台管理布局 =====
+// .app-content 为防 Electron resize 露黑设了 overflow:hidden，它本身不是滚动容器，
+// 于是后台这些很长的表单页面超出部分会被直接裁掉、滚不动。
+// 这里让后台布局撑满剩余高度，并把纵向滚动交给 Content。
+.admin-layout {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+
+  // 右侧（Header + Content）这一列
+  > .ant-layout {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .admin-sider { overflow-y: auto; }
+
+  .admin-header { flex-shrink: 0; }
+
+  .admin-content {
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    // 滚动时不要把整页/侧栏一起带着滚
+    overscroll-behavior: contain;
+  }
+}
+
 .titlebar {
   flex-shrink: 0;
   height: 38px;

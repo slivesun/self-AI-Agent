@@ -11,10 +11,24 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  // 历史解析快照（每次「上传简历解析」成功后都会留一份）
+  const [snapshots, setSnapshots] = useState<any[]>([]);
+  const [snapshotId, setSnapshotId] = useState<string | undefined>(undefined);
+  const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
     load();
   }, []);
+
+  const loadSnapshots = async () => {
+    try {
+      const d: any = await api.getProfileSnapshots();
+      setSnapshots(d.list || []);
+    } catch {
+      // 快照列表拉不到不影响编辑表单
+      setSnapshots([]);
+    }
+  };
 
   const load = async () => {
     try {
@@ -24,6 +38,37 @@ export default function ProfilePage() {
       message.error(e.message);
     } finally {
       setLoading(false);
+    }
+    loadSnapshots();
+  };
+
+  // 选中一条历史解析 → 整体回填到表单（并落草稿，发布后才对外生效）
+  const onRestoreSnapshot = async (id: string) => {
+    setSnapshotId(id);
+    setRestoring(true);
+    try {
+      const d: any = await api.getProfileSnapshot(id);
+      const p = d.profile || {};
+      // 必须整体替换而不是浅合并：否则旧档案里多出的经历/项目会残留，
+      // 回填结果和选中的那份记录对不上
+      const normalized = {
+        ...p,
+        basics: p.basics || {},
+        summary: p.summary || '',
+        experiences: p.experiences || [],
+        projects: p.projects || [],
+        skills: p.skills || [],
+        education: p.education || [],
+      };
+      form.resetFields();
+      form.setFieldsValue(normalized);
+      await api.saveProfile(normalized);
+      message.success('已回填到表单并保存为草稿，点「发布」后访客才能看到');
+    } catch (e: any) {
+      setSnapshotId(undefined);
+      message.error('回填失败：' + e.message);
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -39,7 +84,7 @@ export default function ProfilePage() {
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
-      const { parsed } = json.data;
+      const { parsed, llm } = json.data;
       // 合并解析结果到表单（只填充非空字段）
       const current = form.getFieldsValue(true);
       const merged = { ...current, ...parsed };
@@ -47,7 +92,16 @@ export default function ProfilePage() {
       form.setFieldsValue(merged);
       // 解析结果必须落库成草稿，否则刷新页面就丢了（发布也是复制库里的草稿）
       await api.saveProfile(merged);
-      message.success('文件解析完成，已保存为草稿，请检查并补充内容');
+      loadSnapshots();
+      if (llm?.error) {
+        // 模型没兜住时不能只说"成功"，否则用户会以为内容解析完整
+        message.warning(
+          `已保存为草稿，但大模型解析未完全成功：${llm.error.message}。请逐项核对内容是否缺失`,
+          8,
+        );
+      } else {
+        message.success('文件解析完成，已保存为草稿，请检查并补充内容');
+      }
     } catch (e: any) {
       message.error('解析失败：' + e.message);
     } finally {
@@ -96,6 +150,32 @@ export default function ProfilePage() {
         </Space>
       }
     >
+      <div style={{
+        display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+        marginBottom: 16, padding: '10px 16px', background: '#fafafa',
+        border: '1px solid #f0f0f0', borderRadius: 8,
+      }}>
+        <span style={{ fontSize: 13, color: '#555' }}>从已解析档案回填</span>
+        <Select
+          style={{ width: 420, maxWidth: '100%' }}
+          placeholder={snapshots.length ? '选择一份历史解析结果' : '还没有历史解析记录，先上传简历解析'}
+          value={snapshotId}
+          loading={restoring}
+          disabled={!snapshots.length}
+          showSearch
+          optionFilterProp="label"
+          allowClear
+          onChange={(v) => { if (v) onRestoreSnapshot(v); else setSnapshotId(undefined); }}
+          options={snapshots.map((s) => ({
+            value: s.id,
+            label: `${s.filename || '未命名文件'}｜${s.name || '未识别姓名'}${s.title ? '·' + s.title : ''}｜${s.createdAt}`,
+          }))}
+        />
+        <span style={{ fontSize: 12, color: '#999' }}>
+          回填会整体覆盖当前表单并保存为草稿，点「发布」后访客才看到
+        </span>
+      </div>
+
       <Form form={form} layout="vertical">
         <Tabs
           defaultActiveKey="basics"

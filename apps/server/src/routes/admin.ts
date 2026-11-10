@@ -4,8 +4,9 @@ import multer from 'multer';
 import { db } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { getSetting, setSetting, maskSecret } from '../settings.js';
-import { parsePdf, parseDocx, extractProfileFromText, parseResumeWithLLM } from '../parse.js';
+import { parsePdf, parseDocx, extractProfileFromText, parseResumeWithLLM, mergeProfile } from '../parse.js';
 import { fixFilename } from '../utils.js';
+import { ALLOWED_MODELS, DEFAULT_MODEL, isAllowedModel } from '../llm.js';
 import type { QAPair } from '@resume-agent/shared';
 
 const router = Router();
@@ -45,12 +46,76 @@ router.post('/parse', requireAuth, upload.single('file'), async (req, res) => {
     else if (ext === 'docx') text = await parseDocx(req.file.buffer);
     else return res.status(400).json({ ok: false, error: '仅支持 PDF 和 .docx 格式' });
     const parsed = extractProfileFromText(text);
-    const llmParsed = await parseResumeWithLLM(text);
-    const final = llmParsed ? { ...parsed, ...llmParsed } : parsed;
-    res.json({ ok: true, data: { parsed: final, rawText: text.slice(0, 2000) } });
+    const llm = await parseResumeWithLLM(text);
+    // 只让大模型的非空字段覆盖规则结果，避免空值把已抓到的内容抹掉
+    const final = llm.profile ? mergeProfile(parsed, llm.profile) : parsed;
+    // 解析结果留一份快照：后台「档案编辑」页可以从历史解析里挑一份回填
+    saveProfileSnapshot(origName, final);
+    res.json({
+      ok: true,
+      data: {
+        parsed: final,
+        rawText: text.slice(0, 2000),
+        llm: { used: !!llm.profile, error: llm.error },
+      },
+    });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: '解析失败：' + e.message });
   }
+});
+
+// ===== 历史解析快照（供「档案编辑」回填）=====
+const MAX_PROFILE_SNAPSHOTS = 20;
+
+function safeParseProfile(text: string): any {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+function saveProfileSnapshot(filename: string, profile: any) {
+  try {
+    db.prepare('INSERT INTO profile_snapshots (id, filename, data) VALUES (?, ?, ?)')
+      .run(crypto.randomUUID(), (filename || '').slice(0, 200), JSON.stringify(profile));
+    // 只留最近 N 份，避免每解析一次就无限增长
+    const stale = db.prepare(
+      'SELECT id FROM profile_snapshots ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET ?'
+    ).all(MAX_PROFILE_SNAPSHOTS) as any[];
+    for (const r of stale) db.prepare('DELETE FROM profile_snapshots WHERE id = ?').run(r.id);
+  } catch (e: any) {
+    // 快照只是便利功能，写失败不能把解析结果一起丢掉
+    console.warn('[parse] 保存解析快照失败:', e?.message || e);
+  }
+}
+
+router.get('/profile/snapshots', requireAuth, (req, res) => {
+  const rows = db.prepare(
+    'SELECT id, filename, data, created_at FROM profile_snapshots ORDER BY created_at DESC, rowid DESC'
+  ).all() as any[];
+  res.json({
+    ok: true,
+    data: {
+      list: rows.map((r) => {
+        const p = safeParseProfile(r.data) || {};
+        return {
+          id: r.id,
+          filename: r.filename,
+          name: p.basics?.name || '',
+          title: p.basics?.title || '',
+          experienceCount: (p.experiences || []).length,
+          projectCount: (p.projects || []).length,
+          createdAt: r.created_at,
+        };
+      }),
+    },
+  });
+});
+
+router.get('/profile/snapshots/:id', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT id, filename, data, created_at FROM profile_snapshots WHERE id = ?')
+    .get(req.params.id) as any;
+  if (!row) return res.status(404).json({ ok: false, error: '该历史解析记录不存在' });
+  const profile = safeParseProfile(row.data);
+  if (!profile) return res.status(500).json({ ok: false, error: '历史解析记录内容已损坏' });
+  res.json({ ok: true, data: { id: row.id, filename: row.filename, createdAt: row.created_at, profile } });
 });
 
 // ===== 人设 =====
@@ -157,8 +222,10 @@ router.get('/settings/llm', requireAuth, (req, res) => {
       hasApiKey: !!key,
       apiKeyMasked: key ? maskSecret(key) : '',
       apiKeySource: envKey ? 'env' : dbKey ? 'db' : 'none',
-      model: envModel || dbModel || 'doubao-seed-2-0-mini-260428',
-      modelSource: envModel ? 'env' : dbModel ? 'db' : 'default',
+      model: dbModel || envModel || DEFAULT_MODEL,
+      modelSource: dbModel ? 'db' : envModel ? 'env' : 'default',
+      // 环境变量里也配了模型时，让界面能提示"后台选择优先"
+      envModel: envModel || null,
       editable: !envKey,
     },
   });
@@ -178,8 +245,9 @@ router.put('/settings/llm', requireAuth, (req, res) => {
 
   if (typeof model === 'string' && model.trim()) {
     const value = model.trim();
-    if (value.length > 64 || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/.test(value)) {
-      return res.status(400).json({ ok: false, error: '模型名格式不正确' });
+    // 只接受白名单内的模型，避免存进一个调不通的名字后"保存成功但用不了"
+    if (!isAllowedModel(value)) {
+      return res.status(400).json({ ok: false, error: `不支持的模型：${value}。可选：${ALLOWED_MODELS.join('、')}` });
     }
     setSetting('ark_model', value);
   }

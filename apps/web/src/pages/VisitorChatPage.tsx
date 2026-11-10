@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import { MODEL_OPTIONS } from '@resume-agent/shared';
 import { api, streamRun } from '../api';
 import BrandMark from '../components/BrandMark';
 import { MenuIcon, MoonIcon, SunIcon } from '../components/HeaderIcons';
@@ -60,7 +61,7 @@ export default function VisitorChatPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
-  const [model, setModel] = useState('doubao-seed-2-0-mini-260428');
+  const [model, setModel] = useState('doubao-seed-2-0-lite-260428');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   const [sidebarWidth, setSidebarWidth] = useState(22); // 百分比
@@ -94,13 +95,8 @@ export default function VisitorChatPage() {
   // 身份切换序号：异步请求返回时若身份已变，丢弃旧身份的结果，避免会话列表串号
   const identitySeqRef = useRef(0);
 
-  const MODELS = [
-    { value: 'doubao-seed-evolving', label: 'Doubao Evolving' },
-    { value: 'doubao-seed-2-0-mini-260428', label: 'Doubao Mini' },
-    { value: 'doubao-seed-2-0-lite-260428', label: 'Doubao Lite' },
-    { value: 'kimi-k3-1-pro-261024', label: 'Kimi K3 Pro' },
-    { value: 'glm-5-2-260617', label: 'GLM-5.2' },
-  ];
+  // 可选模型与后台「模型设置」共用同一份白名单
+  const MODELS = MODEL_OPTIONS;
 
   const greeting = (p: any): Message => ({
     id: 0, role: 'assistant',

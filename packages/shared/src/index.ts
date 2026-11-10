@@ -159,3 +159,25 @@ export type AnalyticsSummary = {
   unanswered: UnansweredQuestion[];
   recentSessions: VisitorSession[];
 };
+
+// ===== 可选模型白名单 =====
+// 后台「模型设置」下拉、访客端模型选择器都用这一份。
+// 注意：服务端构建是逐文件转译、不做 bundle，运行时不能 import 本包的 TS 源码，
+// 所以 apps/server/src/llm.ts 里有一份等价的 ALLOWED_MODELS，改这里时请同步修改。
+export const MODEL_OPTIONS = [
+  { value: 'doubao-seed-evolving', label: 'Doubao Evolving' },
+  { value: 'doubao-seed-2-0-mini-260428', label: 'Doubao Mini' },
+  { value: 'doubao-seed-2-0-lite-260428', label: 'Doubao Lite' },
+  { value: 'kimi-k3-1-pro-261024', label: 'Kimi K3 Pro' },
+  { value: 'glm-5-2-260617', label: 'GLM-5.2' },
+];
+
+export const DEFAULT_MODEL = 'doubao-seed-2-0-lite-260428';
+
+export function isAllowedModel(value: string): boolean {
+  return MODEL_OPTIONS.some(m => m.value === value);
+}
+
+export function modelLabel(value: string): string {
+  return MODEL_OPTIONS.find(m => m.value === value)?.label || value;
+}
