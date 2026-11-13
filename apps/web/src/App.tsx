@@ -9,7 +9,6 @@ import AnalyticsPage from './pages/admin/AnalyticsPage';
 import KnowledgePage from './pages/admin/KnowledgePage';
 import SettingsPage from './pages/admin/SettingsPage';
 import VisitorChatPage from './pages/VisitorChatPage';
-import ProShell from './pages/pro/ProShell';
 import DesktopTitleBar from './components/DesktopTitleBar';
 import { getToken } from './api';
 
@@ -26,8 +25,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/c/:slug" element={<VisitorChatPage />} />
-          {/* 专业版：由 Electron 主进程以独立窗口加载 /pro，与主窗口互不影响 */}
-          <Route path="/pro" element={<ProShell />} />
+          {/* 专业版是独立入口（/pro.html），不放在主 SPA 的路由里 */}
           <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/admin/profile" replace />} />
             <Route path="profile" element={<ProfilePage />} />

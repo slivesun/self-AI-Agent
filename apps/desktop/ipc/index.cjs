@@ -9,7 +9,7 @@ const { CHANNELS } = require('../bridge/channels.cjs');
 const ok = (data) => ({ ok: true, data });
 const fail = (error) => ({ ok: false, error });
 
-function registerIpcHandlers({ ipcMain, BrowserWindow, openPro, getProUrl }) {
+function registerIpcHandlers({ ipcMain, BrowserWindow, openPro, getProUrl, dialog }) {
   /** 找到发起本次调用的窗口（已销毁/不存在时返回 null） */
   const senderWindow = (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -45,6 +45,23 @@ function registerIpcHandlers({ ipcMain, BrowserWindow, openPro, getProUrl }) {
       return ok(result);
     } catch (err) {
       return fail(err && err.message ? err.message : '未知错误');
+    }
+  });
+
+  // 系统目录选择：只在用户点按钮时弹，返回 { path: string | null }（取消时 path 为 null）
+  ipcMain.handle(CHANNELS.DIALOG_CHOOSE_DIRECTORY, async (event, payload) => {
+    if (!dialog) return fail('当前环境不支持系统目录选择');
+    const win = senderWindow(event);
+    try {
+      const result = await dialog.showOpenDialog(win || undefined, {
+        title: (payload && payload.title) || '选择工作区目录',
+        properties: ['openDirectory', 'createDirectory'],
+        defaultPath: (payload && payload.defaultPath) || undefined,
+      });
+      if (result.canceled || !result.filePaths || !result.filePaths.length) return ok({ path: null });
+      return ok({ path: result.filePaths[0] });
+    } catch (err) {
+      return fail(err && err.message ? err.message : '选择目录失败');
     }
   });
 }

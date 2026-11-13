@@ -13,6 +13,7 @@ import knowledgeRoutes from './routes/knowledge.js';
 import linksRoutes from './routes/links.js';
 import visitorRoutes from './routes/visitor.js';
 import visitorAuthRoutes from './routes/visitorAuth.js';
+import proRoutes from './pro/routes.js';
 
 initDb();
 // 访客数据按保留期清理（默认 180 天，只清匿名访客）
@@ -73,6 +74,8 @@ app.use('/api/auth/visitor', visitorAuthRoutes);
 app.use('/api/admin', auditAdminMutations, requireAuth, requirePasswordChanged, adminRoutes);
 app.use('/api/admin/knowledge', auditAdminMutations, requireAuth, requirePasswordChanged, knowledgeRoutes);
 app.use('/api/admin/links', auditAdminMutations, requireAuth, requirePasswordChanged, linksRoutes);
+// 专业版：独立路由树 + 独立数据库，只认管理员身份（与普通版共用账号，不共用数据）
+app.use('/api/pro', proRoutes);
 app.use('/api', visitorRoutes);
 
 // API 未命中：返回 JSON 404，不要掉进前端 index.html

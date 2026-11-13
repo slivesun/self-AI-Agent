@@ -56,6 +56,29 @@ async function exists(target) {
   }
 }
 
+/**
+ * 安装包自检（专业版）：多入口页面、pro 分包、pro 后端模块少一个都不行。
+ * 少一个的表现是"主窗口能开、专业版窗口白屏/接口 404"，很难从日志看出来，
+ * 所以在打包阶段就硬失败。
+ */
+async function assertProAssets(backendDir) {
+  const web = path.join(backendDir, 'web');
+  const dist = path.join(backendDir, 'dist');
+  const problems = [];
+
+  if (!(await exists(path.join(web, 'pro.html')))) problems.push('web/pro.html 缺失（专业版入口页面没进包）');
+
+  const assets = await readdir(path.join(web, 'assets')).catch(() => []);
+  if (!assets.some((f) => /^pro-.*\.js$/.test(f))) problems.push('web/assets/pro-*.js 缺失（专业版前端分包没进包）');
+
+  const proModules = ['pro/routes.js', 'pro/agent.js', 'pro/search.js', 'pro/system.js', 'pro/todos.js'];
+  for (const mod of proModules) {
+    if (!(await exists(path.join(dist, mod)))) problems.push(`dist/${mod} 缺失（专业版后端模块没构建进包）`);
+  }
+  if (problems.length) throw new Error(`专业版资源自检失败：\n  - ${problems.join('\n  - ')}`);
+  console.log('  专业版资源自检通过：pro.html + pro 分包 + 5 个 pro 后端模块都在包里');
+}
+
 /** 清掉部署目录里不该进安装包的东西（源码、测试脚本、lock 文件） */
 async function pruneBackend(dir) {
   const removeList = [
@@ -124,6 +147,9 @@ async function main() {
   await rm(path.join(stagingBackend, 'web'), { recursive: true, force: true });
   await cp(webDist, path.join(stagingBackend, 'web'), { recursive: true });
 
+  // 专业版资源自检：多入口页面 + pro 分包 + pro 后端模块，缺一个就停下
+  await assertProAssets(stagingBackend);
+
   // 运行时环境变量：不再复制 apps/server/.env（含真实 API Key），
   // 只放一份空模板，避免安装包被解包后直接盗用密钥。
   // 模型 Key 在应用内「模型设置」页填写（存本机数据库），或由用户放到
@@ -167,6 +193,14 @@ async function main() {
   console.log(`\n[5/5] electron-builder 打包（${wantDirOnly ? '仅目录' : 'NSIS 安装包'}）`);
   const args = wantDirOnly ? ['--dir'] : ['--win', 'nsis'];
   run('pnpm', ['exec', 'electron-builder', ...args], { cwd: desktopRoot });
+
+  // 5b. 打完之后再验一次"安装后真正会被加载的那份"
+  const unpackedBackend = path.join(outDir, 'win-unpacked', 'resources', 'backend');
+  if (await exists(unpackedBackend)) {
+    await assertProAssets(unpackedBackend);
+  } else {
+    console.log('  ⚠ 未找到 win-unpacked/resources/backend，跳过安装后自检');
+  }
 
   // 产物汇报
   const entries = await readdir(outDir).catch(() => []);

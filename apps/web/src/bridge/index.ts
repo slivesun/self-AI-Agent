@@ -34,6 +34,13 @@ export interface DesktopBridge {
   pro: {
     open(options?: { theme?: ThemeMode }): Promise<ProOpenResult>;
   };
+  /** 系统能力；浏览器端恒为 undefined，页面必须降级成手填路径 */
+  dialog?: {
+    chooseDirectory(options?: {
+      title?: string;
+      defaultPath?: string;
+    }): Promise<{ ok: true; path: string | null } | { ok: false; error: string }>;
+  };
 }
 
 declare global {

@@ -4,13 +4,28 @@ export function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
 export function setToken(t: string) { localStorage.setItem(TOKEN_KEY, t); }
 export function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
-async function request<T = any>(path: string, options: RequestInit = {}): Promise<T> {
+/**
+ * 专业版登录态：管理员 token 优先，其次普通版聊天页登录的会员 token。
+ * 匿名访客（'anonymous'）不用于专业版接口。
+ */
+export function adminTokenOrMember(): string {
+  const admin = localStorage.getItem(TOKEN_KEY) || '';
+  if (admin && admin !== 'anonymous') return admin;
+  const member = localStorage.getItem('ra_visitor_token') || '';
+  return member === 'anonymous' ? '' : member;
+}
+
+export async function request<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as any) };
-  // 访客路由用访客 token，管理路由用管理员 token
+  // 访客路由用访客 token，管理路由用管理员 token；
+  // 专业版（/api/pro）与普通版共用登录态：管理员 token 优先，其次聊天页登录的会员 token。
   const isVisitor = path.startsWith('/api/c/') || path.startsWith('/api/auth/visitor');
+  const isPro = path.startsWith('/api/pro');
   const token = isVisitor
     ? (localStorage.getItem('ra_visitor_token') || '')
-    : getToken();
+    : isPro
+      ? (adminTokenOrMember())
+      : getToken();
   if (token && token !== 'anonymous') headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(path, { ...options, headers });
   const json = await res.json();

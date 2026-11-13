@@ -85,6 +85,35 @@ resources/backend/
 - 冒烟测试：`pnpm --filter @resume-agent/server run smoke`（用临时数据目录起隔离实例，不碰真实数据）。
 - 备份：`pnpm --filter @resume-agent/server run backup`（先 checkpoint WAL，再复制到 `data/backups/`）。
 
+## 专业版（Pro）
+
+一套安装包里的第二个工作台，和普通版**共用模型 Key 与登录账号，其余数据物理隔离**：独立入口 `pro.html`、独立库 `pro/pro.db`、独立产物/上传/备份目录。启动后主窗口右上角有「专业版」入口，或在桌面托盘菜单里打开。
+
+| 能力 | 工具（级别） |
+|---|---|
+| 读写本地项目代码 | `fs_list` `fs_read` `fs_glob` `fs_grep` (R)、`fs_write` `fs_edit` `fs_restore` (W) |
+| 跑命令 / 系统控制 | `shell_run` (X)、`system_info` (R)、`system_open` `clipboard_write` (W)、`clipboard_read` `screen_capture` (X) |
+| 联网 | `web_search` `web_fetch`（百度/必应，**总开关 + 单轮开关**双控，单轮最多 5 次） |
+| 创作 | `image_generate` `image_analyze` `design_render` `doc_export` `doc_read` |
+| 任务面板 | `todo_set`（待办/进行中/已完成三列看板） |
+
+- 写操作与命令执行会弹权限卡（可"允许一次/本会话允许/拒绝"）；设置里还有「标准 / 严格 / 只读」三档。
+- 每次改动文件都会进改动清单（含 diff），支持一键回滚；所有工具调用进审计日志。
+- 用量按专业版单独记账（`pro_usage`），与普通版分账但共用同一个模型。
+
+验证方式：
+
+```bash
+pnpm typecheck                                # 后端 + 前端类型检查
+pnpm smoke:pro                                # 专业版端到端冒烟（49 项，临时目录+端口 3019）
+PRO_SMOKE_NET=0 pnpm smoke:pro                # 跳过真实联网项
+cd apps/server && npx tsx scripts/pro-search-check.mjs "关键词" baidu   # 单独验搜索引擎
+cd apps/server && npx tsx scripts/pro-system-check.mjs                  # 单独验剪贴板/截屏（会临时改剪贴板并恢复）
+```
+
+打包自检：`pnpm pack` / `pnpm pack:dir` 会在组装 `resources/backend` 后、以及 electron-builder 出包后再各验一次「`web/pro.html` + `web/assets/pro-*.js` + `dist/pro/*.js` 五个模块」是否都在包里，缺一个就硬失败（避免出现"主界面能开、专业版白屏"这种难查的问题）。
+
+
 ## 生产部署检查清单
 
 | 项 | 说明 |
@@ -97,7 +126,7 @@ resources/backend/
 | 额度 | 访客：5 个会话、每会话 1 问；注册账号每日 `DAILY_MESSAGES_PER_USER`（默认 200） |
 | 健康检查 | `GET /api/health` |
 | 审计 | 后台「会话分析」同源接口 `GET /api/admin/audit`（最近 100 条写操作） |
-| 构建校验 | CI：`.github/workflows/ci.yml`（typecheck + build + smoke + 前端构建） |
+| 构建校验 | CI：`.github/workflows/ci.yml`（typecheck + build + smoke + 前端构建 + 专业版冒烟，无 `ARK_API_KEY` secret 时自动跳过专业版冒烟） |
 
 ## 已实现功能
 

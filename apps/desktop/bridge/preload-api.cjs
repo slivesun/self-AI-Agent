@@ -71,11 +71,31 @@ function createBridge({ ipcRenderer, argv, platform, appVersion }) {
         return { ok: true, created: data.created === true, focused: data.focused === true };
       },
     },
+
+    // 系统能力：目前只有目录选择（专业版授权工作区用，普通版不调用）
+    dialog: {
+      /**
+       * 弹系统目录选择框。
+       * @param {{ title?: string, defaultPath?: string }} [options]
+       * @returns {Promise<{ ok: true, path: string | null } | { ok: false, error: string }>}
+       *          用户取消时 path 为 null（不是错误）
+       */
+      async chooseDirectory(options) {
+        const res = await safeInvoke(CHANNELS.DIALOG_CHOOSE_DIRECTORY, {
+          title: options && options.title,
+          defaultPath: options && options.defaultPath,
+        });
+        if (!res.ok) return { ok: false, error: res.error };
+        const data = res.data || {};
+        return { ok: true, path: typeof data.path === 'string' ? data.path : null };
+      },
+    },
   };
 
   // 逐层冻结：渲染层无法替换 bridge 上的方法，降低被页面脚本改写的风险
   Object.freeze(bridge.window);
   Object.freeze(bridge.pro);
+  Object.freeze(bridge.dialog);
   Object.freeze(bridge);
   return bridge;
 }

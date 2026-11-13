@@ -9,6 +9,8 @@
     "build": "pnpm build:web && pnpm build:server",
     "build:web": "pnpm --filter @resume-agent/web run build",
     "build:server": "pnpm --filter @resume-agent/server run build",
+    "typecheck": "pnpm --filter @resume-agent/server run typecheck && pnpm --filter @resume-agent/web run typecheck",
+    "smoke:pro": "pnpm --filter @resume-agent/server run smoke:pro",
     "start": "pnpm --filter @resume-agent/server run start",
     "electron": "pnpm --filter @resume-agent/desktop run dev",
     "pack": "pnpm --filter @resume-agent/desktop run dist",

@@ -62,3 +62,71 @@ export function AiIcon({ size = 20 }: { size?: number }) {
     </svg>
   );
 }
+
+/** 侧边栏：项目（本地代码工作区） */
+export function ProjectIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3.2 7.4a1.6 1.6 0 0 1 1.6-1.6h4.2l1.6 2h8a1.6 1.6 0 0 1 1.6 1.6v8.2a1.6 1.6 0 0 1-1.6 1.6H4.8A1.6 1.6 0 0 1 3.2 17.8z" />
+      <path d="M3.2 10.4h17.6" strokeWidth="1.4" opacity="0.7" />
+    </svg>
+  );
+}
+
+/** 侧边栏：创作（画图 / 设计 / 文档） */
+export function CreateIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3.2c4.2 0 7.6 3 7.6 6.8 0 2.6-1.8 4.2-4 4.2h-1.4c-1.1 0-1.9.8-1.9 1.8 0 .5.2.9.5 1.3.4.4.6.8.6 1.3 0 .9-.8 1.5-2 1.5-4.4 0-8-3.4-8-7.7 0-4 3.2-7 7.6-7z" />
+      <circle cx="8.2" cy="9.2" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="7.2" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="15.8" cy="9.2" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** 侧边栏：素材（产物库） */
+export function AssetsIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.2" y="4.6" width="17.6" height="14.8" rx="2" />
+      <circle cx="8.4" cy="9.4" r="1.4" />
+      <path d="M3.6 16.4l4.4-4 3.2 2.8 3.6-3.4 5 4.6" strokeWidth="1.5" opacity="0.85" />
+    </svg>
+  );
+}
+
+/** 侧边栏：任务（待办面板） */
+export function TaskIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4.4" y="3.6" width="15.2" height="16.8" rx="2" />
+      <path d="M8.4 9.2l1.6 1.6 2.8-2.9" strokeWidth="1.5" />
+      <path d="M8.4 15.4h7.2" strokeWidth="1.5" opacity="0.8" />
+    </svg>
+  );
+}
+
+/** 侧边栏：设置 */
+export function SettingsIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3.1" />
+      <path d="M12 3v2.2M12 18.8V21M4.8 7.8l1.9 1.1M17.3 15.1l1.9 1.1M3 12h2.2M18.8 12H21M4.8 16.2l1.9-1.1M17.3 8.9l1.9-1.1" />
+    </svg>
+  );
+}
+
+/** 发送 */
+export function SendIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4.2 12l15.6-7-4 7 4 7z" />
+    </svg>
+  );
+}
+
+/** 工具调用状态点 */
+export function ToolDot() {
+  return <span className="tool-dot" aria-hidden="true" />;
+}

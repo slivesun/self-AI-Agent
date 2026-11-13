@@ -34,3 +34,11 @@ jobs:
 
       - name: 前端类型检查 + 构建
         run: pnpm --filter @resume-agent/web run build
+
+      - name: 专业版冒烟测试（隔离实例；未配置 ARK_API_KEY 时自动跳过）
+        if: env.ARK_API_KEY != ''
+        env:
+          ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
+          ARK_MODEL: ${{ secrets.ARK_MODEL }}
+          PRO_SMOKE_NET: '0'
+        run: pnpm --filter @resume-agent/server run smoke:pro

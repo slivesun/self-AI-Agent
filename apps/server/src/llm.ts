@@ -84,7 +84,7 @@ export function buildSystemPrompt(profile: Profile, persona: Persona, qaList: QA
   } else {
     lines.push('2. 如果资料里没有相关信息，直接说"这个问题我不太清楚，建议直接问本人"。');
   }
-  lines.push('3. 回答要具体、有技术细节，避免空话套话。');
+  lines.push('3. 回答要具体、有技术细节，避免空话套话；但默认要短——一般 2–4 句（100 字左右），先给结论再补一句关键细节，不要铺开讲。对方追问"详细说说/具体怎么做的"时再展开。');
   lines.push('4. 不要暴露你是 AI 或机器人。');
   lines.push('5. 技术问题以口头解释为主，不要主动贴大段代码；只有面试官明确要求"写个例子/给段代码/写个demo"时，才用 markdown 代码块给出简洁的代码示例。');
   if (knowledgeEnabled) {

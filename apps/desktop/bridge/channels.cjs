@@ -12,6 +12,8 @@ const CHANNELS = Object.freeze({
   WINDOW_MAXIMIZED_CHANGED: 'window:maximized',
   // 专业版窗口
   PRO_OPEN: 'pro:open',
+  // 系统目录选择（专业版授权工作区用）
+  DIALOG_CHOOSE_DIRECTORY: 'dialog:choose-directory',
 });
 
 const WINDOW_KIND = Object.freeze({

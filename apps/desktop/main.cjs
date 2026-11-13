@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, screen, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -18,7 +18,8 @@ const BACKEND_PORT = 3001;
 // 仅在拿不到后端默认链接时兜底使用（正常情况由 /api/default-link 决定）
 const CHAT_SLUG = 'yw2h7ngjq6';
 const CHAT_PATH = `/c/${CHAT_SLUG}`;
-const PRO_PATH = '/pro';
+// 专业版是独立的多入口页面（apps/web/pro.html），不是主 SPA 里的路由
+const PRO_PATH = '/pro.html';
 const BASE_URL = `http://localhost:${BACKEND_PORT}`;
 let chatUrl = `${BASE_URL}${CHAT_PATH}`;
 const PRO_URL = `${BASE_URL}${PRO_PATH}`;
@@ -197,6 +198,7 @@ async function bootstrap() {
   registerIpcHandlers({
     ipcMain,
     BrowserWindow,
+    dialog,
     getProUrl: () => PRO_URL,
     openPro: ({ theme, url }) => openProWindow(proWindowDeps({ url, theme })),
   });
